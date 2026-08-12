@@ -54,8 +54,8 @@
       "url": "https://github.com/codeAesthetic/twinscope/releases/download/v0.1.0/TwinScope-0.1.0.dmg",
       "buttonLabel": "Download .dmg",
       "primary": false,
-      "tested": true,
-      "note": "For Intel Macs. Same unsigned caveat as the Apple silicon build."
+      "tested": false,
+      "note": "For Intel Macs. Cross-compiled from Apple silicon and not run on an Intel machine. Same unsigned caveat."
     },
     {
       "id": "windows",
