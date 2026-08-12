@@ -1,0 +1,62 @@
+---
+title: Binary files
+description: A verdict card from file sizes and a SHA-256 of each side — identical or different, and nothing more, because nothing more would be honest.
+lede: Sizes, a SHA-256 of each side, and a verdict. Identical or different, and nothing beyond that — because for two opaque files, nothing beyond that is honest.
+---
+
+## The verdict
+
+Two binaries produce one card. Not a diff: a determination, with the evidence that produced it.
+
+| Row         | What it shows                                                                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Verdict** | Identical or different, with a one-line reason — the same bytes, the same size but different hashes, or how much the after side grew or shrank |
+| **Name**    | Both file names                                                                                                                                |
+| **Size**    | Both sizes                                                                                                                                     |
+| **SHA-256** | Both hashes, or _not needed_ where the answer was already settled                                                                              |
+
+A size difference is conclusive on its own, so hashing only runs when the two sizes match and the answer is still open. That is why the hash cells sometimes read _not needed_ — the comparison genuinely did not need to read either file.
+
+<MediaFigure
+  id="binary-verdict"
+  alt="A binary comparison verdict card showing the files are different, with sizes and SHA-256 hashes beneath"
+  caption={
+    <>
+      <b>The evidence is on the card.</b> "Different" is never a mystery — the reason is written
+      under it.
+    </>
+  }
+/>
+
+## Why this engine exists
+
+Before it, an executable dropped into TwinScope was line-diffed. The result was pages of mojibake that looked like a diff and meant nothing: every byte sequence that happened to contain a newline became a "line", and every one of them differed.
+
+Answering two questions honestly beats answering the wrong question in detail.
+
+## How a file ends up here
+
+Detection runs in a specific order, and two ordering decisions matter:
+
+1. **Bytes are decoded before they are sniffed.** A UTF-16 file _is_ roughly half NUL bytes; sniffing the raw bytes would write it off as binary before anyone tried to read it. So the first 8 KB are decoded first, and the NUL check runs on the decoded text.
+2. **A known format outranks the sniff.** Every PNG contains NULs too. Detection by extension wins for the formats TwinScope can actually read, so an image is routed to the [image engine](/docs/engines/images) rather than here.
+
+Once both sides do sniff as binary, this engine takes the pair ahead of every other one — nothing else has anything useful to say about them.
+
+<Callout tone="note" title="One side binary, one side text">
+  This engine only claims a pair where *both* sides are binary, and no other engine claims a binary
+  at all. So a binary against a text file has no automatic answer: the detection bar says which
+  engine it picked — or that it picked none — and you can name one yourself from the engine override
+  beside it.
+</Callout>
+
+## What it deliberately does not do
+
+No hex view, no byte offsets, no attempt to guess at structure. Those would each imply a kind of insight this engine does not have.
+
+<Callout tone="warn" title="Two limits worth knowing">
+  There are no changes to step through, so the summary strip's change stepper does not appear for a
+  binary comparison. And neither the HTML nor the Markdown report has a body for this engine — an
+  export carries the summary, the verdict counts and the notes, and says the engine has no renderer
+  where the detail would go.
+</Callout>

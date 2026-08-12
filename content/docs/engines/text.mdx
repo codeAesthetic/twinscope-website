@@ -1,0 +1,138 @@
+---
+title: Text and code
+description: Three view modes, edited lines paired and marked word by word, folded runs, syntax highlighting, and a find that hides nothing.
+lede: Three view modes, edited lines paired and marked word by word, long unchanged runs folded, syntax highlighting for nine languages, and a find that does not hide anything.
+---
+
+<MediaFigure
+  id="R2-text-view-modes"
+  gif
+  alt="Cycling a text comparison through side-by-side, unified and inline, then expanding a folded run"
+  caption={
+    <>
+      <b>The three view modes.</b> The same comparison, re-laid out — no re-run, no scroll reset.
+    </>
+  }
+/>
+
+## How lines are paired
+
+A plain line diff reports an edited line as one delete plus one unrelated add, and leaves you to work out that they belong together. TwinScope runs a line pass, then pairs deletes with adds that are similar enough — above a `0.34` similarity threshold — and marks the differing words inside the pair.
+
+You see one modified row, not two mystery rows.
+
+<DiffSample
+  file="config.ts"
+  summary="3 modified · 1 added"
+  rows={[
+    { kind: 'del', ln: 42, text: '  timeout: ⟦3000⟧,' },
+    { kind: 'add', ln: 42, text: '  timeout: ⟦10000⟧,' },
+    { ln: 43, text: '  retries: 3,' },
+    { kind: 'fold', text: '⋯ 214 unchanged lines — click to expand' },
+    { ln: 258, text: 'export const client = createClient(config);' },
+    { kind: 'add', ln: 259, text: '⟦export const retryClient = withRetry(client);⟧' },
+  ]}
+/>
+
+<Callout tone="note">
+  Word-level marks travel inside the row text as `⟦…⟧`, and the view splits on them. Anything that
+  re-reads row text — export, copy — strips the markers first, so a report never contains them.
+</Callout>
+
+## View modes
+
+Cycle with <Kbd>{'⌘\\'}</Kbd>, or pick from the toolbar.
+
+| Mode             | What it shows                                                            | Best for                     |
+| ---------------- | ------------------------------------------------------------------------ | ---------------------------- |
+| **Side by side** | Both versions in aligned columns, as one virtualised list of row _pairs_ | Reviewing a change           |
+| **Unified**      | One column, deletes above adds, like `git diff`                          | Narrow windows, patch review |
+| **Inline**       | One column with word-level marks only, no duplicated rows                | Prose and copy edits         |
+
+<Callout tone="tip" title="Why one list, not two panes">
+  The sides are rows of a single virtualised list, so the columns cannot drift apart and there is no
+  scroll to synchronise. Rows are a fixed 20 px, which means the virtualiser needs no measurement
+  pass and a 100k-line pair scrolls.
+</Callout>
+
+<MediaFigure
+  id="text-side-by-side"
+  alt="A side-by-side text comparison with paired modified rows and word-level marks"
+/>
+
+## Normalisation toggles
+
+Three toggles live in the toolbar. Each one **re-runs the comparison** rather than filtering the view, so the counts in the summary strip always describe what is on screen.
+
+- **Ignore whitespace** — leading, trailing and run-length differences stop counting.
+- **Ignore case** — case-only differences stop counting.
+- **Collapse unchanged** — runs longer than 8 lines of context fold to 3, expandable in place.
+
+<Callout tone="warn" title="What normalisation never does">
+  It never changes what is displayed. Normalisation only affects how two lines are *compared*; the
+  rows always carry the original text, byte for byte. There is a test in the app asserting exactly
+  this.
+</Callout>
+
+<MediaFigure
+  id="text-toggles"
+  alt="The text toolbar with ignore whitespace, ignore case and collapse unchanged all enabled"
+  caption={
+    <>
+      <b>Counts come back from the engine</b>, not from the view.
+    </>
+  }
+/>
+
+## Syntax highlighting
+
+Nine languages, loaded on demand. Highlighting sits _under_ the change marks and search hits: a hit inside a changed word keeps both, because all three are resolved in one pass rather than layered on top of each other.
+
+<CodeBlock
+  file="src/renderer/src/lib/highlight.ts"
+  lang="ts"
+  code={`// shiki's JavaScript regex engine — not oniguruma.
+// Oniguruma is WASM, and the packaged app loads the renderer from file://,
+// where fetching a .wasm is unreliable.
+const highlighter = await createHighlighterCore({
+  engine: createJavaScriptRegexEngine(),
+  langs: ['typescript', 'json', 'css'],
+});`}
+/>
+
+<Callout tone="warn" title="Known limit">
+  Tokenising happens per row, without its neighbours — an unterminated multi-line string colours as
+  if it started on that line. That is inherent to virtualised rendering, and we would rather say so
+  than pretend otherwise.
+</Callout>
+
+## Finding text in a diff
+
+<Kbd>⌘F</Kbd> is a **find**, not a filter: nothing disappears. You get a match count, <Kbd>⏎</Kbd>
+and <Kbd>⇧⏎</Kbd> to walk the hits — wrapping at both ends — and <Kbd>Esc</Kbd> to clear.
+
+<DiffSample
+  file="Search: timeout — 2 / 7"
+  rows={[
+    { kind: 'del', ln: 42, text: '  «timeout»: ⟦3000⟧,' },
+    { kind: 'add', ln: 42, text: '  «timeout»: ⟦10000⟧,' },
+    { ln: 44, text: '  connect«Timeout»: 500,' },
+  ]}
+/>
+
+A match spanning a mark boundary is still found: searching `timeout` matches a changed word rendered as `⟦time⟧out`, because matching happens against the stripped text and the ranges are re-zipped afterwards.
+
+<Callout tone="note" title="The same box behaves differently per engine">
+  In text it finds. In [JSON](/docs/engines/json) and [folders](/docs/engines/folders) it filters,
+  and rows disappear. The toolbar box belongs to the workspace chassis and each view opts in; a view
+  that has not opted in leaves the box disabled rather than inert.
+</Callout>
+
+## Limits
+
+| Limit                | Value   | What happens past it                                    |
+| -------------------- | ------- | ------------------------------------------------------- |
+| Line count           | 200,000 | The comparison stops and says so, instead of hanging    |
+| Input size over IPC  | 10 MB   | Only the path crosses; the worker reads the file itself |
+| Large text input     | > 10 MB | You are asked before it runs                            |
+| 100k lines, measured | 195 ms  | On the owner's Mac, unpackaged build                    |

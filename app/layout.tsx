@@ -6,6 +6,11 @@ import { SITE, SITE_URL, absoluteUrl } from '@/lib/site';
 import '@/styles/tokens.css';
 import '@/styles/site-tokens.css';
 import '@/styles/base.css';
+import '@/styles/primitives.css';
+import '@/styles/layout.css';
+import '@/styles/content.css';
+import '@/styles/docs.css';
+import '@/styles/home.css';
 
 /**
  * `metadataBase` is what makes canonical and OG URLs absolute (plan W18).
@@ -34,8 +39,7 @@ export const metadata: Metadata = {
 
 /**
  * Sets the theme before first paint so a dark-default site never flashes white.
- * Inline and synchronous by necessity — anything deferred is a flash. Kept as a
- * string constant so the CSP-unfriendly bits stay in one reviewable place.
+ * Inline and synchronous by necessity — anything deferred is a flash.
  */
 const THEME_BOOTSTRAP = `
 (function () {

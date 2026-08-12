@@ -1,0 +1,144 @@
+---
+title: Keyboard
+description: Every keyboard shortcut in TwinScope, grouped by scope, transcribed from the single registry that binds them.
+lede: Fifteen bindings, one registry. The table below is the same list that fires the keys, fills the Settings grid and populates the command palette.
+---
+
+## How to read this page
+
+Combos are written the way you read them — <Kbd>⌘⇧E</Kbd> — and matched by
+parsing that same string, so the label and the behaviour cannot disagree.
+
+<Callout tone="note" title="⌘ means Ctrl off macOS">
+  Matching accepts either modifier: `event.metaKey || event.ctrlKey`. One table, both platforms —{' '}
+  <Kbd>⌘K</Kbd> is Ctrl+K on Windows and Linux.
+</Callout>
+
+## Global
+
+Available on every screen.
+
+| Keys                         | Action            | Detail                        |
+| ---------------------------- | ----------------- | ----------------------------- |
+| <Kbd>⌘K</Kbd>                | Command palette   | Everything, by name           |
+| <Kbd>⌘O</Kbd>                | Compare files…    | Pick two files from disk      |
+| <Kbd>⌘⇧O</Kbd>               | Compare folders…  | Recursive tree diff           |
+| <Kbd>⌘⇧V</Kbd> <Kbd>⌘V</Kbd> | Compare clipboard | Paste A, then paste B         |
+| <Kbd>⌘1</Kbd>                | Go to Compare     |                               |
+| <Kbd>⌘2</Kbd>                | Go to History     |                               |
+| <Kbd>⌘⇧L</Kbd>               | Toggle theme      | Dark ↔ light                  |
+| <Kbd>⌘,</Kbd>                | Settings          | Theme, defaults and shortcuts |
+| <Kbd>Esc</Kbd>               | Close overlay     |                               |
+
+## Compare screen
+
+| Keys           | Action     | Detail               |
+| -------------- | ---------- | -------------------- |
+| <Kbd>⌘⇧S</Kbd> | Swap sides | Before becomes after |
+
+## Workspace
+
+Available while a comparison is open.
+
+| Keys               | Action               | Detail                       |
+| ------------------ | -------------------- | ---------------------------- |
+| <Kbd>⌘⇧E</Kbd>     | Export report        | Repeats the last format used |
+| <Kbd>⌘F</Kbd>      | Search in comparison |                              |
+| <Kbd>{'⌘\\'}</Kbd> | Cycle view mode      |                              |
+| <Kbd>⌥↓</Kbd>      | Next change          |                              |
+| <Kbd>⌥↑</Kbd>      | Previous change      |                              |
+
+<MediaFigure
+  id="settings-shortcuts"
+  alt="The Settings shortcuts grid listing every binding with its keys"
+  caption={
+    <>
+      <b>Settings → Shortcuts</b> is generated from the registry, so it cannot describe a key the
+      app does not have.
+    </>
+  }
+/>
+
+## Why plain ⌘V is not a key binding
+
+<Kbd>⌘V</Kbd> is declared in the registry as an **alias** of <Kbd>⌘⇧V</Kbd>, but it is implemented
+as a `paste` event listener rather than a keydown match.
+
+That is deliberate. Letting the _platform_ decide what counts as a paste keeps
+
+<Kbd>⌘V</Kbd> working normally inside every text field — the search box, the history filter, the
+palette input — and picks up the OS variants for free, such as pasting from the Edit menu or
+middle-click on Linux.
+
+The listener bails out the moment the event target is an `input`, a `textarea` or
+anything `contentEditable`, and otherwise defers to exactly the same
+`clipboard.read` path <Kbd>⌘⇧V</Kbd> uses. The keystroke is only a trigger; the
+payload, the type detection and the engine choice are identical either way.
+
+<Callout tone="warn" title="One shared predicate">
+  The same `isTypingTarget()` check guards both the paste listener and the keymap. If the two ever
+  disagreed, <Kbd>⌘V</Kbd> would start eating keystrokes out of a text field. Sharing it is the fix.
+</Callout>
+
+## One registry, three consumers
+
+<CodeBlock
+  file="src/renderer/src/lib/shortcuts.ts"
+  lang="ts"
+  code={`{
+  id: 'paste-compare',
+  combo: '⌘⇧V',
+  // Plain ⌘V works too whenever you are not typing — handled by a \`paste\`
+  // listener rather than a key binding, so text fields keep their own paste.
+  aliases: ['⌘V'],
+  label: 'Compare clipboard',
+  detail: 'Paste A, then paste B',
+  scope: 'global',
+  inPalette: true,
+  icon: '⧉',
+}`}
+/>
+
+One table drives three things that used to drift apart:
+
+1. **What actually fires** — the keymap iterates the registry and dispatches by id.
+2. **The Settings grid** — rendered from the same array, showing _every_ binding
+   for each action rather than only the primary, because a grid that lists one key
+   while two work is exactly the drift the table exists to prevent.
+3. **The palette's Actions group** — entries marked `inPalette` become palette
+   rows, carrying their own combo. Seven of the fifteen are marked.
+
+A binding that is not in the registry does not exist.
+
+<Callout tone="tip" title="Duplicates are a test failure, aliases included">
+  `duplicateCombos()` walks every combo *and every alias* and rejects two bindings that would fire
+  on the same keystroke. Two scopes may legitimately reuse a combo; a clash **within** one scope, or
+  against anything `global`, is ambiguous and fails the unit test. An alias colliding with a primary
+  is exactly as broken as two primaries colliding, which is why aliases are declared rather than
+  left implicit.
+</Callout>
+
+### Who owns which key
+
+Registry entries are dispatched by whichever surface can actually perform them.
+The application-level keymap owns Compare files, Compare folders, Compare
+clipboard, Swap sides, Toggle theme, Settings and the two view switches. The rest
+belong to their surface: <Kbd>⌘K</Kbd> to the palette, <Kbd>⌘F</Kbd> to the
+toolbar search, <Kbd>⌘⇧E</Kbd> to the export menu, <Kbd>{'⌘\\'}</Kbd> to whichever
+engine view has view modes, and <Kbd>Esc</Kbd> to the overlay that is open.
+
+<Kbd>⌥↓</Kbd> and <Kbd>⌥↑</Kbd> are handled ahead of the rest and only when the current result
+actually has changes to step through, so the keys stay available to the OS otherwise.
+
+## Keys that are not registry bindings
+
+These belong to one control rather than to the app, so they are not in the table
+above and do not appear in the Settings grid.
+
+| Keys                       | Where            | What it does                                                                                                             |
+| -------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| <Kbd>⏎</Kbd>               | Compare screen   | Runs the comparison, once both sides are filled and nothing is already running. Ignored while you are typing in a field. |
+| <Kbd>↑</Kbd> <Kbd>↓</Kbd>  | Command palette  | Move the cursor                                                                                                          |
+| <Kbd>⏎</Kbd>               | Command palette  | Open the highlighted entry                                                                                               |
+| <Kbd>⏎</Kbd> <Kbd>⇧⏎</Kbd> | Text diff search | Walk forward and back through the matches                                                                                |
+| <Kbd>Esc</Kbd>             | Text diff search | Clear the search                                                                                                         |

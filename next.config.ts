@@ -27,4 +27,31 @@ const nextConfig: NextConfig = {
   pageExtensions: ['ts', 'tsx', 'md', 'mdx'],
 };
 
-export default createMDX({})(nextConfig);
+/**
+ * Plugins are named as strings, not imported.
+ *
+ * Turbopack serialises loader options to hand them to its Rust side, so an
+ * imported function fails the build with "does not have serializable options".
+ * The string form is resolved inside the loader instead.
+ */
+const withMDX = createMDX({
+  // Must be explicit. Left unset, the Turbopack loader rule matches `*` and the
+  // MDX pipeline is applied to `.tsx` files too, which fails as a *parse* error
+  // inside whichever component happens to contain a template literal.
+  extension: /\.mdx$/,
+  options: {
+    // Frontmatter is read by lib/toc.ts for metadata, but it must also be
+    // *removed* from the document, or the `---` block renders as body text.
+    // `'yaml'` is the matter preset, not decoration: remark-frontmatter treats
+    // `{}` as a matter descriptor and rejects it with "Missing `type` in matter".
+    remarkPlugins: [
+      ['remark-frontmatter', 'yaml'],
+      ['remark-mdx-frontmatter', {}],
+    ],
+    // Heading ids, from the same github-slugger that lib/toc.ts uses for the
+    // TOC — so a rail link and its heading can never disagree.
+    rehypePlugins: [['rehype-slug', {}]],
+  },
+});
+
+export default withMDX(nextConfig);

@@ -1,0 +1,145 @@
+---
+title: History
+description: Every comparison is recorded so you can search it, star it and reopen it — paths, sizes and counts only, never file contents.
+lede: Every comparison you run is recorded. Search it, star it, reopen it. What gets written down is a description of the comparison — never the files themselves.
+---
+
+<MediaFigure
+  id="history-list"
+  alt="The History screen grouped by recency, with starred rows and summary chips"
+  caption={
+    <>
+      <b>Grouped by recency, not by date.</b> The thing you were just looking at is the first thing
+      on screen.
+    </>
+  }
+/>
+
+## What gets recorded
+
+A comparison is written when it finishes. Re-running the same pair **updates the
+existing row** rather than stacking another one — history is a list of things you
+compared, not of button presses, so flipping a normalisation toggle three times
+does not produce three entries.
+
+Drilling into a file pair from inside a folder comparison is not recorded. It is
+a step _inside_ a comparison rather than one you chose to run, and recording it
+would bury the folder diff under its own files.
+
+Rows are grouped into <Chip>Today</Chip> <Chip>Yesterday</Chip> <Chip>This week</Chip> <Chip>Earlier</Chip>.
+
+## What is stored, and what is not
+
+| Stored                                                                          | Not stored                        |
+| ------------------------------------------------------------------------------- | --------------------------------- |
+| A title, built from the two input names                                         | **File contents, of either side** |
+| Engine id (`text`, `json`, `folder`, `image`, `binary`)                         | Anything you typed or pasted      |
+| For each side: kind, display name, path (when it came from disk), size in bytes | Directory listings                |
+| The options the comparison ran with                                             | Rendered rows, images or hashes   |
+| The summary counts — added, removed, modified                                   |                                   |
+| Starred flag, created-at and last-opened-at timestamps                          |                                   |
+
+The stripping happens in the main process, on the way into the database, rather
+than in whichever caller happened to build the payload:
+
+<CodeBlock
+  file="src/main/history.ts"
+  lang="ts"
+  code={`/**
+ * The only shape that reaches the database. Contents are dropped here — not by
+ * the caller — so no future caller can leak them by forgetting.
+ */
+function strip(input: InputPayload): StoredInput {
+  return {
+    kind: input.kind,
+    name: input.name,
+    ...(input.path !== undefined ? { path: input.path } : {}),
+    size: input.size,
+  };
+}`}
+/>
+
+<Callout tone="privacy" title="Why it is written this way">
+  A caller that forgets to drop `text` before recording would turn the history file into a copy of
+  your data. Doing it at the database boundary means there is exactly one place to get right, and it
+  is the last place the data passes through. The Settings screen shows **Store file contents in
+  history** as a switch that is off and disabled — a fact, not an option.
+</Callout>
+
+## Searching and starring
+
+The search box filters on the title, the path line and the engine id, as a
+case-insensitive substring. **Starred only** narrows to the rows you have kept.
+The two compose.
+
+Starring is a round trip: the star writes to the database in main and the list
+re-reads it, so the History screen and the Compare screen's recent list can never
+disagree about which rows are starred. Each row's star is a real button outside
+the row button — a button inside a button is not valid markup, and the star has
+to stay keyboard-reachable.
+
+## Reopening
+
+Clicking a row re-reads **both inputs from disk**, restores the engine and the
+options that were stored with it, and re-runs the comparison. Nothing about the
+result is cached: what you see is the files as they are now, compared the way you
+compared them before. Because the re-run records against the same row, reopening
+also moves it back to the top of the list.
+
+### When an input has gone
+
+Two different failures, and conflating them would be a lie:
+
+| Situation                                                        | What happens                                                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| One side was pasted from the clipboard (no path was ever stored) | The surviving side loads, and a notice says the pasted side cannot be reopened — paste it again with <Kbd>⌘⇧V</Kbd> |
+| A file that was on disk cannot be opened any more                | The surviving side loads, the missing name is called out, and you are asked to pick a replacement                   |
+
+Either way you land back on the Compare screen with one side already filled,
+rather than staring at a failed comparison.
+
+## Deleting
+
+- <Chip tone="del">✕</Chip> on a row deletes that row.
+- **Clear history** is a two-step control: the first click turns it into
+  **Delete everything** with a **Cancel** beside it. Clearing removes starred
+  rows too — you asked for everything.
+- The button is disabled when there is nothing to clear.
+
+## The 500-row cap
+
+History does not grow forever. Past **500 rows**, the oldest **unstarred** rows
+are pruned as new comparisons come in. Starred rows are excluded from the
+pruning, which is what starring is for: it is the difference between "I looked at
+this once" and "keep this".
+
+<Callout tone="note" title="Pruning runs on insert, not on a timer">
+  A new row triggers the prune, so the table settles at the cap rather than being swept
+  periodically. An update to an existing row does not prune, because it did not add anything.
+</Callout>
+
+## Where it lives
+
+Storage is **Node's built-in SQLite** (`node:sqlite`), in `twinscope.db` inside
+Electron's user-data directory — on macOS that is
+`~/Library/Application Support/TwinScope/twinscope.db`.
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`# macOS
+~/Library/Application\\ Support/TwinScope/twinscope.db`}
+/>
+
+The database is opened lazily: the first comparison pays for it, not startup. The
+schema is created and versioned on first open through a `schema_migrations`
+table, with indexes on last-opened and on starred + last-opened.
+
+<Callout tone="tip" title="No native module to rebuild">
+  Using `node:sqlite` rather than `better-sqlite3` means there is no native addon compiled per
+  Electron ABI, nothing to rebuild when Electron updates, and no install script that can fail on
+  your machine. It is the same engine, without the build step.
+</Callout>
+
+It is an ordinary SQLite file. You can open it with `sqlite3`, back it up, or
+delete it — deleting it is equivalent to clearing history.

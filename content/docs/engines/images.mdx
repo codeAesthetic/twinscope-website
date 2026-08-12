@@ -1,0 +1,115 @@
+---
+title: Images
+description: Four ways to look at the same two images — side by side, overlay, blink and difference — with changed regions boxed, a movable threshold, and honest handling of mismatched sizes.
+lede: Side by side, overlay, blink and difference, over one shared stage. Changed regions are boxed and stay pinned to their pixels through every zoom, and mismatched sizes still get a real answer.
+---
+
+<MediaFigure
+  id="R5-image-modes"
+  gif
+  alt="Cycling an image comparison through side-by-side, overlay, blink and difference with the changed regions boxed"
+  caption={
+    <>
+      <b>Four modes, one comparison.</b> Switching mode re-lays out what is already computed — it
+      does not re-run anything.
+    </>
+  }
+/>
+
+## Four modes
+
+| Mode             | What you see                                                        | Best for                                  |
+| ---------------- | ------------------------------------------------------------------- | ----------------------------------------- |
+| **Side by side** | Both images in aligned panes                                        | Reading a change with its context         |
+| **Overlay**      | The after image blended over the before one, with an opacity slider | Alignment and layout shifts               |
+| **Blink**        | One pane alternating between before and after                       | Spotting a change you cannot describe yet |
+| **Difference**   | A heatmap: changed pixels lit, everything else dimmed to grey       | Finding every change at once              |
+
+<Callout tone="note" title="Blink respects reduced motion">
+  With the system's reduce-motion preference set, blink stops alternating and holds the before
+  image. A GIF cannot be paused and neither can a flashing pane, so the honest thing is not to
+  start.
+</Callout>
+
+<MediaFigure
+  id="image-four-modes"
+  alt="The same image pair shown in side-by-side, overlay, blink and difference modes"
+  caption={
+    <>
+      <b>Difference mode is a real image.</b> It is the one that also travels into an HTML report.
+    </>
+  }
+/>
+
+## Changed regions
+
+Individual differing pixels are not a finding — a region is. The engine reduces the per-pixel mask to a coarse grid, then flood-fills over cells rather than pixels, which is the difference between a handful of boxes and millions of stack operations on a 4K pair.
+
+A cell has to hold a minimum share of changed pixels to count at all, which is what keeps antialiasing noise from becoming two hundred one-pixel "regions". Up to 24 regions are reported, largest first.
+
+Boxes are stored as percentages of the compared canvas, not as pixel offsets. That is why they stay pinned to the pixels they describe at any magnification. They are drawn on the after side only — drawing them twice in side-by-side reads as twice as many changes.
+
+<MediaFigure
+  id="image-regions-zoom"
+  alt="A zoomed image comparison with region boxes still aligned to the pixels they describe"
+  caption={
+    <>
+      <b>Zoom applies to the stage, not to each pane.</b> Which is what keeps the boxes honest.
+    </>
+  }
+/>
+
+## Zoom and pan
+
+Zoom walks a ladder of fixed stops up to **400%**, with the current fit spliced into it so stepping out of a fitted view always passes back through it. How low the ladder goes depends on the pair: a fit is never magnification, and the floor is whatever it takes to see both images at once.
+
+| Control                       | Action                              |
+| ----------------------------- | ----------------------------------- |
+| `−` / `+`                     | One stop down or up the ladder      |
+| <Kbd>⌘−</Kbd> / <Kbd>⌘=</Kbd> | The same, from the keyboard         |
+| <Kbd>⌘0</Kbd>                 | Fit both images in the window       |
+| <Kbd>⌥⌘0</Kbd>                | Actual pixel size                   |
+| <Kbd>⌘</Kbd>-scroll, or pinch | Continuous zoom about the pointer   |
+| Drag                          | Pan, once there is something to pan |
+
+Zooming keeps the point under the cursor under the cursor. Without that correction, zooming in from a fitted view of a large image lands in the top-left corner and whatever you were looking at is gone. Below 1:1 the image is smoothed, above it the pixels are the point — nearest-neighbour turns a downsampled photograph into moiré.
+
+## The threshold
+
+A slider sets how different two pixels have to be before they count. It runs from `0.01` to `0.50` and starts at `0.12`; lower is stricter. The comparison is a Manhattan distance across all four RGBA channels, measured against that fraction of the maximum — cheaper than a perceptual metric, and for screenshots and UI captures it flags the same pixels.
+
+Moving the slider **re-runs the comparison**, because each run is a full pixel pass and the numbers have to come from it. The re-run waits for the slider to settle rather than firing on every frame of a drag, and the notes for the result record the threshold that produced it.
+
+## Mismatched sizes
+
+Two images of different dimensions still get an answer. Both are padded onto the union of the two canvases, so the extra area shows up as changed — which is exactly what happened. Each image is laid out at its own size within that canvas rather than stretched to fill a pane, since stretching invents a difference that is not there.
+
+The summary strip flags the size mismatch, and the notes state both dimensions.
+
+## The region list is change navigation
+
+The sidebar lists every region with its position and the share of the image it covers. Clicking one scrolls the stage to it and marks it current — and it is the _same_ index that the summary strip's `‹ n/m ›` and <Kbd>⌥↑</Kbd>/<Kbd>⌥↓</Kbd> drive, so the list, the keys and the boxes cannot disagree. See [change navigation](/docs/results/change-navigation).
+
+## Where this engine runs
+
+Worth saying plainly, because it is unusual: **the image comparison runs in the app window**, not in the engine host process where every other engine runs. Comparing images needs a decoder, and the only decoder available is the window's.
+
+It is also **not** a Web Worker. The packaged app loads its renderer from `file://`, and Chromium refuses to construct a worker from an opaque origin — the same `file://` loading that made a WASM regex engine unreliable for [syntax highlighting](/docs/engines/text). Instead the decode is genuinely off-thread via `createImageBitmap`, and the pixel loop hands the frame back between phases so the window keeps painting and Cancel keeps working.
+
+None of that is visible from the outside. The job emits the same events as a hosted one, so the progress bar, cancellation, the summary strip and export cannot tell the difference.
+
+<Callout tone="tip" title="The pixel maths is ours">
+  There is no `pixelmatch` dependency, or any other image library. The comparison, the region
+  clustering and the heatmap are all in the project, which is also why the same code can be reused
+  outside a browser later.
+</Callout>
+
+## Limits
+
+| Limit                | Value   | What happens past it                                                |
+| -------------------- | ------- | ------------------------------------------------------------------- |
+| Longest side         | 4096 px | Both images are scaled down before comparing, and a note records it |
+| Regions reported     | 24      | The largest are kept                                                |
+| Bytes read per image | 64 MB   | Refused with a message rather than pushed through IPC               |
+
+Decodable formats are the ones the window can decode: PNG, JPEG, WebP, GIF and AVIF. Anything that fails to decode says so, and names that list.

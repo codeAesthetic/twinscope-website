@@ -1,0 +1,159 @@
+/*
+ * Site header and footer. Ported from website.html (the approved design) —
+ * extract, don't retype. Tokens only.
+ */
+
+.ws-hd {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.ws-hd .ws-wrap {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+}
+
+.ws-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  font-size: 15px;
+  color: var(--tx);
+}
+
+.ws-brand:hover {
+  text-decoration: none;
+}
+
+.ws-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.ws-nav a {
+  color: var(--tx-2);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+}
+
+.ws-nav a:hover {
+  background: var(--hover);
+  color: var(--tx);
+  text-decoration: none;
+}
+
+.ws-nav a[aria-current='page'] {
+  color: var(--tx);
+  background: var(--acc-bg);
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
+}
+
+.ws-hd-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-searchpill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 190px;
+  cursor: pointer;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--tx-3);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.ws-searchpill:hover {
+  border-color: var(--acc);
+}
+
+.ws-searchpill .ws-kbd {
+  margin-left: auto;
+}
+
+/* ── footer ── */
+.ws-ft {
+  border-top: 1px solid var(--line);
+  padding: 42px 0 60px;
+  margin-top: 60px;
+  color: var(--tx-3);
+  font-size: 12.5px;
+}
+
+.ws-ft-cols {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: 30px;
+  margin-bottom: 32px;
+}
+
+.ws-ft h2 {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.ws-ft a {
+  display: block;
+  color: var(--tx-2);
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.ws-ft-bot {
+  display: flex;
+  gap: 14px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ws-ft-bot .ws-spacer {
+  flex: 1;
+}
+
+.ws-ft-blurb {
+  max-width: 34ch;
+  margin: 12px 0 0;
+  color: var(--tx-3);
+}
+
+@media (max-width: 760px) {
+  .ws-nav {
+    display: none;
+  }
+
+  .ws-searchpill {
+    min-width: 0;
+  }
+
+  .ws-ft-cols {
+    grid-template-columns: 1fr 1fr;
+  }
+}

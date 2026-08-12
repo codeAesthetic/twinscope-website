@@ -1,0 +1,127 @@
+---
+title: Giving it two inputs
+description: Drag and drop, the native file and folder pickers, and clipboard paste — every route into a comparison, and what each one produces.
+lede: Four ways in, one destination. Drop, browse or paste; the drop zones never learn which route an input arrived by, and neither does the engine that compares it.
+---
+
+<MediaFigure
+  id="R6-intake-paste"
+  gif
+  alt="Two clipboard pastes filling the before and after slots in turn, then the detection bar naming the engine"
+  caption={
+    <>
+      <b>Paste fills the empty side first.</b> Two pastes fill both slots, in reading order.
+    </>
+  }
+/>
+
+## Every route in
+
+| Route                | Keys                            | What it does                                             |
+| -------------------- | ------------------------------- | -------------------------------------------------------- |
+| **Drag and drop**    | —                               | Drops a file, folder or image onto one zone              |
+| **File picker**      | <Kbd>⌘O</Kbd>                   | Opens twice: BEFORE, then AFTER                          |
+| **Folder picker**    | <Kbd>⌘⇧O</Kbd>                  | The same, for directories                                |
+| **Per-zone buttons** | —                               | **Browse file…** and **Folder…** fill just that one side |
+| **Clipboard**        | <Kbd>⌘V</Kbd> or <Kbd>⌘⇧V</Kbd> | Reads the system clipboard into the empty side           |
+| **Swap**             | <Kbd>⌘⇧S</Kbd>                  | Exchanges the two sides                                  |
+
+All of them converge on one function that sets one side's input. Nothing downstream — detection, the
+engine, the view, export — can tell how an input arrived.
+
+A filled zone shows the name, the size, the kind TwinScope decided it is, and the first four lines
+of the content, so you can see at a glance that you dropped the right thing.
+
+## Drag and drop
+
+Drop anything onto **BEFORE** or **AFTER**. The zone highlights while a drag is over it and says
+_Release to compare_.
+
+| Case                                      | Behaviour                                                                                                               |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| One file or folder                        | Read, detected and loaded into that zone                                                                                |
+| Several files at once                     | **Only the first is used.** A zone holds one input, and silently choosing one of five would be worse than ignoring four |
+| A text selection dragged from another app | Becomes an input named `dropped-a.txt` or `dropped-b.txt`                                                               |
+| A drag carrying only whitespace           | Ignored — an accidental drag leaves the zone as it was                                                                  |
+
+<Callout tone="note" title="A dropped file arrives as a real path">
+  Electron removed `File.path` in version 32, so the preload asks Electron for the dropped file's
+  path explicitly and hands that to main. This is why a dropped 200 MB file costs nothing to accept:
+  the path travels, the bytes stay on disk.
+</Callout>
+
+## The native pickers
+
+<Kbd>⌘O</Kbd> opens the file picker **twice**, in sequence — its title reads *Choose the BEFORE
+file*, then *Choose the AFTER file*. Two native dialogs at once is a mess, and the order the titles
+promise is the order you are already reading in.
+
+- Cancelling the first dialog stops there and changes nothing.
+- Cancelling the second leaves BEFORE filled and AFTER empty.
+- The **Browse file…** and **Folder…** buttons inside a zone open a single dialog for that side only.
+
+<Kbd>⌘⇧O</Kbd> is the same flow for directories, which is how a [folder
+comparison](/docs/engines/folders) starts.
+
+## The clipboard
+
+This is the route that makes TwinScope worth leaving open: copy, paste, copy again, paste again,
+read.
+
+| Key            | When it works                        |
+| -------------- | ------------------------------------ |
+| <Kbd>⌘⇧V</Kbd> | Always                               |
+| <Kbd>⌘V</Kbd>  | When you are not typing into a field |
+
+Plain <Kbd>⌘V</Kbd> is handled as a paste event rather than as a key binding, which lets the
+platform decide what counts as a paste — so it keeps working inside every text field, and OS
+variants come along for free. If the paste target is an `input`, a `textarea` or anything
+content-editable, **the field gets the paste** and the comparison is left alone.
+
+| Clipboard holds             | Result                                                                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Text                        | An input named `clipboard-a.txt`, or `clipboard-a.json` when the content parses as JSON. The kind comes from the content, never from that name |
+| An image                    | An input named `clipboard-a.png`, with its pixel dimensions shown in the zone                                                                  |
+| Nothing, or only whitespace | Nothing happens                                                                                                                                |
+
+Pastes fill **A first, then B**. A third paste replaces BEFORE, which is what a third paste almost
+always means.
+
+<Callout tone="note" title="Why a pasted image becomes a file">
+  The image engine works from a path, so a clipboard image is written to a PNG in a temporary
+  directory before it is compared. A copied screenshot usually also carries a text representation of
+  itself; the image is checked first, because the image is what you meant.
+</Callout>
+
+## Swapping sides
+
+<Kbd>⌘⇧S</Kbd>, or the ⇄ button between the two zones. Before becomes after.
+
+With a comparison already open, swapping **re-runs it the other way round** rather than dumping you
+into an empty workspace — and the engine options you had set survive the swap, because they describe
+the request rather than the reply.
+
+## Changing an input clears the result
+
+Setting either side clears any finished comparison, along with the options that belonged to it and
+any [drill-in](/docs/engines/folders) you were inside.
+
+That is deliberate: a stale diff shown against new inputs is worse than no diff at all. A new input
+may also mean a different engine entirely, whose options have nothing to do with the previous one's.
+
+## Large inputs
+
+| Size        | What travels                                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Up to 10 MB | Main reads the text once so the zone can preview it, and the content travels with the input                                 |
+| Over 10 MB  | **Only the path.** The zone reads `read on demand`, and the engine worker opens the file itself                             |
+| Images      | Read as bytes for the in-window image engine, which refuses anything over 64 MB with a message naming the file and its size |
+
+Multi-megabyte strings never cross the IPC boundary. Above 10 MB a text comparison also asks for
+confirmation before it starts — see [Running a comparison](/docs/comparing/running-a-job).
+
+<Callout tone="warn" title="Two of these are newer than the 0.1.0 download">
+  Plain <Kbd>⌘V</Kbd> starting a comparison, and swapping re-running an open comparison instead of
+  clearing it, both landed after 0.1.0. In the published dmg, use <Kbd>⌘⇧V</Kbd> to paste and expect
+  a swap to empty the workspace. See [Install](/docs/getting-started/install).
+</Callout>

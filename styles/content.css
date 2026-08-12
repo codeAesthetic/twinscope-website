@@ -1,0 +1,441 @@
+/*
+ * Content components: media figures, callouts, code blocks, diff samples.
+ * Ported from website.html. Tokens only.
+ */
+
+/* ── MediaFigure ──
+   Poster-first (plan W5): the still is what the page renders, and the GIF is
+   only fetched when a reader presses play. That is both the weight fix and the
+   reduced-motion fix, since a GIF cannot be paused once it is running. */
+.ws-media {
+  margin: 22px 0;
+}
+
+.ws-mediabox {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  display: block;
+  width: 100%;
+  padding: 0;
+  cursor: default;
+}
+
+.ws-mediabox img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* A figure that can play gets the affordance and the pointer. */
+.ws-mediabox[data-playable='true'] {
+  cursor: pointer;
+}
+
+.ws-mediabox[data-playable='true']:hover {
+  border-color: color-mix(in srgb, var(--acc) 50%, var(--line));
+}
+
+.ws-mediabox-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+  border: 0;
+  cursor: pointer;
+  color: var(--tx);
+  font: inherit;
+}
+
+.ws-mediabox-play span {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding-left: 4px;
+  border-radius: 50%;
+  font-size: 17px;
+  color: #fff;
+  background: color-mix(in srgb, var(--acc) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--acc-2) 70%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.ws-mediabox-play:hover span {
+  background: var(--acc-2);
+}
+
+.ws-mediabox-badge {
+  position: absolute;
+  top: 9px;
+  left: 11px;
+  font: 700 9.5px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tx-2);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+/* Placeholder state, for a figure whose asset has not been captured yet.
+   Same box, same aspect, so adding the real asset never moves the layout. */
+.ws-mediabox[data-placeholder='true'] {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--acc) 45%, var(--line-2));
+  background: radial-gradient(120% 120% at 50% 0%, var(--acc-bg), transparent 60%), var(--panel-2);
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 26px;
+  min-height: 180px;
+  text-align: center;
+  aspect-ratio: 16 / 10;
+}
+
+.ws-mediabox-aid {
+  font: 600 11.5px/1.4 var(--mono);
+  color: var(--acc-2);
+}
+
+.ws-mediabox-what {
+  font-size: 13px;
+  color: var(--tx-2);
+  max-width: 46ch;
+}
+
+.ws-media figcaption {
+  margin-top: 9px;
+  font-size: 12.5px;
+  color: var(--tx-3);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.ws-media figcaption b {
+  color: var(--tx-2);
+  font-weight: 600;
+}
+
+/* ── Callout ── */
+.ws-callout {
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--tx-3);
+  border-radius: 0 10px 10px 0;
+  background: var(--panel-2);
+  padding: 13px 16px;
+  margin: 20px 0;
+  font-size: 13.5px;
+  color: var(--tx-2);
+}
+
+.ws-callout > :last-child {
+  margin-bottom: 0;
+}
+
+.ws-callout-t {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 650;
+  color: var(--tx);
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.ws-callout[data-tone='note'] {
+  border-left-color: var(--info);
+}
+.ws-callout[data-tone='note'] .ws-callout-t {
+  color: var(--info);
+}
+.ws-callout[data-tone='tip'] {
+  border-left-color: var(--acc);
+}
+.ws-callout[data-tone='tip'] .ws-callout-t {
+  color: var(--acc-2);
+}
+.ws-callout[data-tone='warn'] {
+  border-left-color: var(--mod);
+}
+.ws-callout[data-tone='warn'] .ws-callout-t {
+  color: var(--mod);
+}
+.ws-callout[data-tone='privacy'] {
+  border-left-color: var(--add);
+}
+.ws-callout[data-tone='privacy'] .ws-callout-t {
+  color: var(--add);
+}
+
+/* ── CodeBlock ── */
+.ws-code {
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+
+.ws-code-hd {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  font: 500 11.5px/1 var(--mono);
+  color: var(--tx-3);
+}
+
+.ws-code-lang {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ws-code pre {
+  margin: 0;
+  padding: 13px 14px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.65;
+  background: transparent !important;
+}
+
+.ws-code pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/*
+ * Shiki emits its own inline colours for one theme. We render with a dual-theme
+ * config, which sets `--shiki-light` / `--shiki-dark` custom properties per
+ * token; these two rules pick the right one instead of shipping two stylesheets.
+ */
+.ws-code pre,
+.ws-code span[style*='--shiki'] {
+  color: var(--shiki-dark, var(--tx));
+}
+
+html[data-theme='light'] .ws-code pre,
+html[data-theme='light'] .ws-code span[style*='--shiki'] {
+  color: var(--shiki-light, var(--tx));
+}
+
+/* ── DiffSample: a real diff, rendered with the app's own row treatment ── */
+.ws-diff {
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.ws-diff-hd {
+  display: flex;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+  font: 600 11px/1 var(--mono);
+  color: var(--tx-3);
+  gap: 14px;
+}
+
+.ws-diff-hd .ws-spacer {
+  margin-left: auto;
+}
+
+.ws-drow {
+  display: flex;
+  font: 12.5px/20px var(--mono);
+  min-height: 20px;
+}
+
+.ws-drow-ln {
+  width: 46px;
+  flex: 0 0 auto;
+  text-align: right;
+  padding-right: 10px;
+  color: var(--tx-3);
+  border-right: 1px solid var(--line);
+  font-size: 10.5px;
+  user-select: none;
+}
+
+.ws-drow-tx {
+  padding: 0 12px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ws-drow[data-kind='add'] {
+  background: var(--add-bg);
+}
+.ws-drow[data-kind='del'] {
+  background: var(--del-bg);
+}
+.ws-drow[data-kind='add'] .ws-drow-ln {
+  color: var(--add);
+}
+.ws-drow[data-kind='del'] .ws-drow-ln {
+  color: var(--del);
+}
+
+.ws-wchg {
+  border-radius: 3px;
+  padding: 1px 0;
+}
+
+.ws-drow[data-kind='add'] .ws-wchg {
+  background: var(--add-bg-2);
+}
+.ws-drow[data-kind='del'] .ws-wchg {
+  background: var(--del-bg-2);
+}
+
+.ws-hit {
+  background: color-mix(in srgb, var(--acc) 40%, transparent);
+  border-radius: 3px;
+}
+
+.ws-drow[data-kind='fold'] {
+  background: var(--panel-2);
+  color: var(--tx-3);
+  font-size: 11px;
+  padding-left: 58px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── tables ── */
+.ws-table-wrap {
+  overflow-x: auto;
+  margin: 20px 0;
+}
+
+table.ws-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.ws-table th,
+table.ws-table td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+table.ws-table th {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+table.ws-table tr:hover td {
+  background: var(--panel-2);
+}
+
+/* ── search palette (mirrors the app's ⌘K) ── */
+.ws-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 80;
+  display: grid;
+  place-items: start center;
+  padding-top: 12vh;
+}
+
+.ws-palette {
+  width: min(620px, 92vw);
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--elev);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.ws-palette-in {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--tx-3);
+}
+
+.ws-palette-in input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.ws-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.ws-palette-list a {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: var(--tx);
+}
+
+.ws-palette-list a:hover,
+.ws-palette-list a[data-selected='true'] {
+  background: var(--acc-bg);
+  text-decoration: none;
+}
+
+.ws-palette-sub {
+  color: var(--tx-3);
+  font-size: 11.5px;
+  margin-left: auto;
+}
+
+.ws-palette-empty {
+  margin: 0;
+  padding: 18px 16px;
+  color: var(--tx-3);
+  font-size: 13px;
+}
+
+.ws-palette-ft {
+  display: flex;
+  gap: 14px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 11px;
+  color: var(--tx-3);
+}
+
+.ws-palette-ft .ws-spacer {
+  margin-left: auto;
+}

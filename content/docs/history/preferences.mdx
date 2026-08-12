@@ -1,0 +1,136 @@
+---
+title: Preferences
+description: Theme, per-engine comparison defaults and window geometry — where each one is stored and when it is read.
+lede: Four short groups rather than every option at once. Theme, comparison defaults that seed each new run, and a window that reopens where you left it.
+---
+
+<MediaFigure
+  id="settings-general"
+  alt="The Settings screen showing Appearance, Comparison defaults and Privacy groups"
+  caption={
+    <>
+      <b>Progressive disclosure.</b> The privacy switches are fixed on purpose — they are facts, not
+      controls.
+    </>
+  }
+/>
+
+## Theme
+
+Three choices: **System**, **Dark**, **Light**. The default is **dark**, not
+system — TwinScope is dark-mode first. <Kbd>⌘⇧L</Kbd> toggles dark ↔ light from
+anywhere.
+
+Both themes are first-class. Choosing **System** follows
+`prefers-color-scheme` live, so changing the OS appearance changes the app
+without a restart.
+
+<Callout tone="note" title="Why the preference is written twice">
+  The theme is stored in `localStorage` *and* in `settings.json`. The browser copy is readable
+  synchronously at first paint, so the window never flashes the wrong theme; the file in the main
+  process is the durable copy and wins once it arrives a tick later, because it is the one that
+  survives a cleared web profile.
+</Callout>
+
+## Comparison defaults
+
+Defaults are **per engine**, keyed by engine id, and they seed every _new_
+comparison:
+
+| Default                     | Engine | Effect                                                                |
+| --------------------------- | ------ | --------------------------------------------------------------------- |
+| Ignore whitespace           | text   | Leading, trailing and run-length whitespace differences stop counting |
+| Collapse unchanged sections | text   | Long unchanged runs fold, keeping 3 lines of context                  |
+| Ignore JSON key order       | json   | Key order stops being a difference — recommended for API responses    |
+
+Being keyed by engine matters: `{ text: { ignoreWhitespace: false } }` affects the
+text engine and nothing else.
+
+### Defaults seed, they do not override
+
+When a comparison runs, your saved defaults go in first and anything the engine
+view has already changed **for this pair** wins:
+
+<CodeBlock
+  file="src/renderer/src/stores/compare.ts"
+  lang="ts"
+  code={`// The user's saved defaults seed the run; anything the engine view has
+// already changed for this pair still wins.
+const merged = { ...defaultsFor(engineId ?? engineFor({ a, b })), ...options };`}
+/>
+
+So flipping a toolbar toggle on one comparison does not quietly rewrite your
+default, and your default does not fight a choice you just made. Loading a new
+input clears the per-pair options — a different pair may not even use the same
+engine.
+
+## Privacy rows
+
+Two switches in the Privacy group are shown off and disabled:
+
+- **Telemetry** — there is none. TwinScope makes no network calls at runtime at
+  all.
+- **Store file contents in history** — off. [History](/docs/history/history)
+  keeps paths, types, sizes and settings only.
+
+They are displayed as facts rather than hidden, so you can see the answer instead
+of taking it on trust. A switch that pretended to control something already
+guaranteed would be worse than no switch.
+
+<Callout tone="warn" title="Two rows are display-only in 0.1.0">
+  **Density** and **Editor font** in the Appearance group render their current value and are not yet
+  wired to anything. See [known limits](/docs/reference/known-limits). **Check for updates** does
+  persist, but 0.1.0 ships no updater for it to drive.
+</Callout>
+
+## Window geometry
+
+The window remembers its size, its position and whether it was maximised.
+
+|                   |                                                          |
+| ----------------- | -------------------------------------------------------- |
+| Default size      | 1440 × 900                                               |
+| Minimum size      | 1080 × 640                                               |
+| Written on        | resize and move, debounced by 400 ms, and again on close |
+| Position restored | only if a display still covers that point                |
+
+Resize and move fire continuously while you drag, so the writes are debounced
+rather than issued per event. A saved position on a monitor you have since
+unplugged is discarded and the window opens at the default position instead of
+off-screen.
+
+## Where preferences live
+
+A plain JSON file, `settings.json`, in Electron's user-data directory:
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`# macOS
+~/Library/Application\\ Support/TwinScope/settings.json`}
+/>
+
+<CodeBlock
+  file="settings.json"
+  lang="json"
+  code={`{
+  "version": 1,
+  "window": { "width": 1440, "height": 900, "x": 120, "y": 80, "maximized": false },
+  "preferences": {
+    "theme": "dark",
+    "engineDefaults": { "text": { "ignoreWhitespace": true } },
+    "checkUpdates": true
+  }
+}`}
+/>
+
+It is read **at boot**, before anything else happens, because the window has to
+size itself first. That is also why preferences live here and comparison history
+lives in SQLite: this file stays tiny so startup never waits on a database.
+
+<Callout tone="tip" title="A corrupt file cannot stop the app opening">
+  Parsing is hand-rolled and defensive. Unknown or malformed values fall back to defaults rather
+  than throwing — an unparseable file boots as if it were absent, a window smaller than 320 × 240 is
+  rejected as nonsense, and a failed *write* is logged rather than fatal. Deleting the file resets
+  every preference.
+</Callout>

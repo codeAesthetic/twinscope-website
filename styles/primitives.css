@@ -1,0 +1,234 @@
+/*
+ * Shared primitives: buttons, chips, keys, badges, the app-window frame.
+ * Ported from website.html. Tokens only.
+ */
+
+.ws-logo {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  position: relative;
+  border-radius: 6px;
+  background: linear-gradient(140deg, var(--acc), #4ad2ff);
+}
+
+.ws-logo::after {
+  content: '';
+  position: absolute;
+  inset: 5px 10px 5px 5px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 2px 0 0 2px;
+}
+
+.ws-ver {
+  font: 600 10px/1 var(--mono);
+  color: var(--acc-2);
+  background: var(--acc-bg);
+  border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent);
+  padding: 3px 5px;
+  border-radius: 5px;
+  letter-spacing: 0;
+}
+
+.ws-kbd {
+  font: 600 10px/1 var(--mono);
+  color: var(--tx-3);
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  padding: 4px 5px;
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+
+.ws-iconbtn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--tx-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ws-iconbtn:hover {
+  background: var(--hover);
+  color: var(--tx);
+  text-decoration: none;
+}
+
+.ws-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--tx);
+  border-radius: 8px;
+  padding: 9px 15px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.ws-btn:hover {
+  background: var(--hover);
+  text-decoration: none;
+}
+
+.ws-btn[data-variant='primary'] {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--acc) 32%, transparent);
+}
+
+.ws-btn[data-variant='primary']:hover {
+  background: var(--acc-2);
+  border-color: var(--acc-2);
+}
+
+/* On the accent fill, a key hint needs its own contrast — the token pair is
+   tuned for panel backgrounds, not for white-on-violet. */
+.ws-btn[data-variant='primary'] .ws-kbd {
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ws-btn[data-size='lg'] {
+  padding: 12px 20px;
+  font-size: 14.5px;
+}
+
+.ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 3px 9px;
+  border-radius: 99px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--tx-2);
+  letter-spacing: 0.01em;
+}
+
+.ws-chip[data-tone='acc'] {
+  color: var(--acc-2);
+  background: var(--acc-bg);
+  border-color: color-mix(in srgb, var(--acc) 34%, transparent);
+}
+
+.ws-chip[data-tone='add'] {
+  color: var(--add);
+  background: var(--add-bg);
+  border-color: color-mix(in srgb, var(--add) 34%, transparent);
+}
+
+.ws-chip[data-tone='del'] {
+  color: var(--del);
+  background: var(--del-bg);
+  border-color: color-mix(in srgb, var(--del) 34%, transparent);
+}
+
+.ws-chip[data-tone='mod'] {
+  color: var(--mod);
+  background: var(--mod-bg);
+  border-color: color-mix(in srgb, var(--mod) 34%, transparent);
+}
+
+.ws-chip .ws-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.ws-ftype {
+  width: 28px;
+  height: 21px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font: 700 9px/1 var(--mono);
+  background: var(--elev);
+  border: 1px solid var(--line-2);
+  color: var(--tx-2);
+  flex: 0 0 auto;
+}
+
+.ws-ftype[data-hue='json'] {
+  color: var(--mod);
+}
+.ws-ftype[data-hue='dir'] {
+  color: var(--info);
+}
+.ws-ftype[data-hue='img'] {
+  color: var(--acc-2);
+}
+.ws-ftype[data-hue='muted'] {
+  color: var(--tx-3);
+}
+
+/* ── app window frame, for screenshots that want a chrome around them ── */
+.ws-appframe {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.ws-appframe-tb {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.ws-lights {
+  display: flex;
+  gap: 6px;
+}
+
+.ws-lights i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: block;
+}
+
+.ws-lights i:nth-child(1) {
+  background: var(--del);
+}
+.ws-lights i:nth-child(2) {
+  background: var(--mod);
+}
+.ws-lights i:nth-child(3) {
+  background: var(--add);
+}
+
+.ws-appframe-title {
+  margin: 0 auto;
+  color: var(--tx-3);
+  font-size: 11.5px;
+}
+
+.ws-eyebrow {
+  font: 600 10.5px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  margin: 0 0 12px;
+  display: block;
+}

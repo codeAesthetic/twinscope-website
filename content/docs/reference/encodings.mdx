@@ -1,0 +1,135 @@
+---
+title: Encodings and line endings
+description: How TwinScope decides what encoding a file is in, when it falls back to Latin-1, and why decoding has to happen before the binary sniff.
+lede: Reading every file as UTF-8 is right until it isn't. Here is what TwinScope checks, in what order, and what it tells you when it had to guess.
+---
+
+Two problems make "just read it as UTF-8" wrong. A UTF-16 file decoded as UTF-8
+becomes a wall of NUL bytes and reads as binary. And a byte-order mark decoded as
+text becomes an invisible first character that makes line 1 differ from an
+otherwise identical line 1.
+
+## The order of operations
+
+This is the part that matters most, and it is easy to get backwards:
+
+<CodeBlock
+  file="Order"
+  lang="text"
+  code={`bytes
+  → BOM check                 (definitive)
+  → unmarked UTF-16 heuristic (needs ≥ 32 bytes)
+  → strict decode             (fatal: true)
+  → Latin-1 fallback          (flagged lossy)
+  → NUL check on the DECODED TEXT   ← binary verdict happens here
+  → EOL detection`}
+/>
+
+<Callout tone="warn" title="Decode before you sniff for binary">
+  A UTF-16 file *is* roughly half NUL bytes. Running the classic "does it contain a NUL?" binary
+  test on the raw bytes would write off every UTF-16 file before anyone tried to read it. So the
+  bytes are decoded first and the NUL check runs on the decoded text — over its first 8192
+  characters.
+</Callout>
+
+There is a second ordering rule alongside it: **a binary sniff must not outrank a
+known format.** Every PNG contains NUL bytes, so detection by extension is
+consulted first — an image comes back as an image, not as an opaque blob. Without
+that, an image pair routed to "no engine can compare binary against binary".
+
+## Byte-order marks
+
+A BOM is definitive — no heuristics run when one is present. They are checked
+longest-first so UTF-8's three bytes win over a two-byte prefix, and the mark is
+removed before the text is compared, so it never shows up as a difference on
+line 1.
+
+| Bytes      | Encoding                                 | Reported as            |
+| ---------- | ---------------------------------------- | ---------------------- |
+| `EF BB BF` | UTF-8 with BOM                           | <Chip>UTF-8 BOM</Chip> |
+| `FF FE`    | UTF-16 little-endian                     | <Chip>UTF-16 LE</Chip> |
+| `FE FF`    | UTF-16 big-endian                        | <Chip>UTF-16 BE</Chip> |
+| none       | UTF-8, or whatever the heuristic decides | <Chip>UTF-8</Chip>     |
+
+## Unmarked UTF-16, and the 32-byte floor
+
+Without a BOM, the tell for UTF-16 is a run of NUL bytes in alternating
+positions: ASCII text encoded as UTF-16 LE is `T \0 e \0 x \0 t \0`, so every odd
+byte is NUL and no even byte is. Big-endian is the mirror image.
+
+TwinScope samples the first **1024 bytes** and counts NULs at even and odd
+indices. If more than a quarter of the sample is NUL in one parity and **zero**
+bytes are NUL in the other, it calls UTF-16 — odd-position NULs mean LE,
+even-position mean BE. That is not something UTF-8 text does.
+
+<CodeBlock
+  file="src/engines/encoding.ts"
+  lang="ts"
+  code={`/** Below this, the alternating-NUL heuristic has nothing to work with. */
+const MIN_HEURISTIC_BYTES = 32;
+
+// A handful of bytes cannot establish a pattern: a six-byte executable header
+// happens to look like UTF-16 often enough to matter, and calling it text is
+// worse than missing a tiny unmarked UTF-16 file (which a BOM would catch).
+if (sample.length < MIN_HEURISTIC_BYTES) return 'utf-8';`}
+/>
+
+<Callout tone="note" title="Why the floor exists">
+  It was added because a **six-byte binary header** read as UTF-16 BE and came back as text, which
+  meant a tiny executable got line-diffed. Below 32 bytes there is not enough evidence to establish
+  a pattern, so the heuristic declines to guess. The cost is missing a very small unmarked UTF-16
+  file — which a BOM would have caught anyway, and which is the cheaper mistake.
+</Callout>
+
+## The Latin-1 fallback
+
+Decoding is attempted **strictly** first: `new TextDecoder(label, { fatal: true })`,
+so invalid bytes throw rather than silently becoming replacement characters.
+
+If that fails, TwinScope falls back to Latin-1, which maps every possible byte to
+some character. The comparison is then **byte-accurate even when it is not
+readable** — an undecodable file still deserves a diff. The result is reported as
+
+<Chip>Latin-1</Chip> and flagged `lossy`, so the UI can say it guessed instead of pretending it
+knew.
+
+<Callout tone="tip" title="Reading a lossy comparison">
+  Rows are still exact byte-for-byte comparisons. What you cannot trust is the *glyphs* — mojibake
+  in one side and mojibake in the other still tells you which bytes changed and where.
+</Callout>
+
+## Line endings
+
+Endings are classified as <Chip>LF</Chip>, <Chip>CRLF</Chip>, <Chip>CR</Chip> or
+
+<Chip>none</Chip>. A file containing any `\r\n` reports **CRLF**, including a mixed-ending file —
+that is the answer that surprises people, so it is the one worth surfacing.
+
+### Where you see it
+
+The encoding and the line ending are published to the **status bar** next to the
+engine name, not into a chip on the result:
+
+<CodeBlock
+  file="Status bar"
+  lang="text"
+  code={`● Local only · text engine · UTF-8 · CRLF          Compared in 140 ms`}
+/>
+
+They are facts about the files rather than facts about the diff, and they exist to
+answer one specific question: _why does line 1 differ when the two lines look
+identical?_
+
+<Callout tone="warn" title="A CRLF/LF mismatch is not shown as a diff">
+  The text engine normalises `\r\n` to `\n` **before** diffing, always. A line-ending mismatch is a
+  property of the two files, not a difference anyone wants to read line by line — so it is reported
+  in the status bar and does not fill the diff with 400 changed rows.
+</Callout>
+
+## Where this runs
+
+Both places that read a file use the same decoder: the main process when it turns a
+path into an input payload, and the engine worker when it reads a file that was too
+large to inline. `src/engines/encoding.ts` is pure — bytes in, a string plus what
+it had to assume out — so it is exercised directly by unit tests rather than
+through the app.

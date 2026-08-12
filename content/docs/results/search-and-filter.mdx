@@ -1,0 +1,86 @@
+---
+title: Search and filter
+description: One toolbar box with two honest behaviours — a find that hides nothing in text diffs, and a filter that removes rows in JSON and folder comparisons.
+lede: One box in the toolbar, two behaviours. In a text diff it finds and hides nothing; in a JSON or folder comparison it filters and rows disappear. Which one you get is a property of the engine, and the box tells you.
+---
+
+<MediaFigure
+  id="R3-search-in-diff"
+  gif
+  alt="Typing into the toolbar search box in a text diff, walking the hits with Enter while the match count updates"
+  caption={
+    <>
+      <b>A find, not a filter.</b> Every row stays; the count tells you where you are among the
+      hits.
+    </>
+  }
+/>
+
+## The box belongs to the chassis
+
+The search field lives in the workspace toolbar, next to Export, and it appears once a comparison has finished. It is owned by the frame rather than by any engine view — but only the view knows what searching _means_ for its rows. So the frame owns the input and the query, and a view **opts in**.
+
+<Kbd>⌘F</Kbd> focuses it from anywhere in the workspace. Its placeholder changes with the engine,
+which is the first hint about which behaviour you are getting.
+
+| Engine                                                                 | Behaviour                            | Placeholder                  |
+| ---------------------------------------------------------------------- | ------------------------------------ | ---------------------------- |
+| **[Text and code](/docs/engines/text)**                                | Find — every row stays               | _Search in diff…_            |
+| **[JSON](/docs/engines/json)**                                         | Filter — non-matching rows disappear | _Filter by path or value…_   |
+| **[Folders](/docs/engines/folders)**                                   | Filter — non-matching rows disappear | _Filter by name or `_.ts`…\* |
+| **[Images](/docs/engines/images)**, **[binary](/docs/engines/binary)** | Not applicable                       | The box is disabled          |
+
+<Callout tone="note" title="Disabled rather than inert">
+  A view that has not opted in leaves the box visibly disabled. A search field that silently does
+  nothing is worse than one that admits it cannot help — you would type, get nothing, and have no
+  way to tell whether that meant "no matches" or "not wired up".
+</Callout>
+
+## In a text diff: a find
+
+Nothing is hidden. You get a match count, keys to walk the hits, and a key to clear.
+
+| Key            | Action                                          |
+| -------------- | ----------------------------------------------- |
+| <Kbd>⌘F</Kbd>  | Focus the box                                   |
+| <Kbd>⏎</Kbd>   | Next hit                                        |
+| <Kbd>⇧⏎</Kbd>  | Previous hit                                    |
+| <Kbd>Esc</Kbd> | Clear the query and hand focus back to the diff |
+
+An `n/m` badge replaces the <Kbd>⌘F</Kbd> hint as soon as there is something to count, and it reads `–` for the position until you take your first step. Walking wraps at both ends, exactly like [change navigation](/docs/results/change-navigation) — and for the same reason: the store owns which match is current, so the badge, the keys and the scroll position are all reading one number.
+
+Hits are counted over what is actually painted, in reading order. On a modified line that means the before side's hits, then the after side's.
+
+## In JSON and folders: a filter
+
+Rows disappear. This is the right behaviour for a tree, where the thing you are looking for is a _path_, and being shown three hundred sibling rows you did not ask about is the problem rather than the point.
+
+- **JSON** matches case-insensitively against the key, the JSONPath, the values on both sides and any note on the row. Ancestors of a match always survive, so a hit is never orphaned from its path.
+- **Folders** treat anything containing `*` or `?` as a shell glob against the file name, and anything else as a case-insensitive substring. A directory survives whenever any of its children does.
+
+Because rows leave, the change stepper's count follows them: `‹ n/m ›` counts what the filter left. A filtering view registers no match total, so there is no `n/m` badge in the box — the count that matters is in the strip.
+
+## Marks, hits and syntax tokens, resolved together
+
+Three systems want to colour the same characters: the engine's changed-word marks, your search hits, and syntax highlighting. They are resolved in **one pass**, never layered.
+
+That is what makes both of these work:
+
+<DiffSample
+  file="Search: timeout — 2 / 7"
+  rows={[
+    { kind: 'del', ln: 42, text: '  «timeout»: ⟦3000⟧,' },
+    { kind: 'add', ln: 42, text: '  «timeout»: ⟦10000⟧,' },
+    { ln: 44, text: '  connect«Timeout»: 500,' },
+  ]}
+/>
+
+- **A hit inside a changed word keeps both highlights.** Searching `300` inside `⟦3000⟧` shows you that it is a hit _and_ that the word changed. Layering one treatment over the other would lose whichever went underneath.
+- **A hit spanning a mark boundary is still found.** Searching `timeout` matches a changed word the engine emitted as `⟦time⟧out`, because matching runs against the text with the markers stripped and the ranges are re-zipped afterwards.
+
+<Callout tone="tip" title="Why this is worth engineering">
+  Word marks travel inside the row text as `⟦…⟧`. Anything that treats them as ordinary characters —
+  a naive search, a copy, an export — either misses matches or leaks the markers. Resolving all
+  three systems against the stripped text is what keeps the search honest and keeps `⟦` out of your
+  reports.
+</Callout>

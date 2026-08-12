@@ -1,0 +1,122 @@
+---
+title: Install
+description: Download the macOS dmg from GitHub Releases and get past Gatekeeper, or build TwinScope from source with Node 24.
+lede: A macOS dmg, or a build from source in three commands. The dmg is unsigned, so macOS refuses to open it on the first attempt — here is exactly how to open it anyway, and exactly what that means.
+---
+
+## Requirements
+
+|                     |                                                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS**           | The primary target. Both Apple silicon (`arm64`) and Intel (`x64`) dmgs are built.                                                                    |
+| **Node**            | 24 (LTS) — only for building from source. `nvm use` picks it up from `.nvmrc`.                                                                        |
+| **npm**             | 11 or newer, which ships with Node 24.                                                                                                                |
+| **Windows / Linux** | Build targets exist — an NSIS installer, an AppImage and a `.deb` — but they are **untested on their own platforms** and are not supported for 0.1.0. |
+
+## Download the macOS build
+
+The dmg is published on GitHub Releases — see [Download](/download) for the current file. Open it
+and drag **TwinScope** to your Applications folder.
+
+Then read the next section before you double-click it, because double-clicking will not work.
+
+## macOS will refuse to open it
+
+<Callout tone="warn" title="The build is unsigned and not notarised">
+  There is no Apple Developer ID behind the published dmg. macOS Gatekeeper therefore blocks it on
+  first launch and reports that it cannot check the app for malicious software. This is not a bug
+  and not something the download can fix — an unsigned app is exactly what Gatekeeper exists to
+  stop.
+</Callout>
+
+To open it anyway:
+
+1. Open your **Applications** folder in Finder.
+2. **Right-click** (or Control-click) **TwinScope**.
+3. Choose **Open** from the context menu.
+4. In the dialog that appears, click **Open** again.
+
+That is the whole workaround, and it is needed **once**. After that the app launches normally from
+Spotlight, the Dock or a double-click.
+
+What you are doing when you click that second **Open** is telling macOS that you vouch for this
+binary. That is a real trust decision, not a formality. If you would rather not make it on our
+behalf, [build from source](#build-from-source) — the result is the same app, built by you.
+
+<Callout tone="note" title="If you want a signed build">
+  The packaging config sets `hardenedRuntime`, so a signed and notarised build only needs an Apple
+  Developer ID: point `electron-builder` at your own certificate and notarisation credentials and
+  build it yourself. The repository's `docs/release.md` has the exact steps and the verification
+  commands (`codesign --verify`, `stapler validate`, `spctl --assess`).
+</Callout>
+
+## Build from source
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`git clone https://github.com/codeAesthetic/twinscope.git
+cd twinscope
+
+nvm use # or: nvm install 24 — the version comes from .nvmrc
+npm install # also fetches the Electron binary, see below
+npm run dev # opens the app with hot reload`}
+/>
+
+That is the whole setup. To produce a dmg instead of a dev window:
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`npm run package:mac   # -> release/TwinScope-<version>-arm64.dmg, plus x64 and zips`}
+/>
+
+| Command               | What it does                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `npm run dev`         | Electron and Vite with hot reload                                                             |
+| `npm run build`       | Production build into `out/`                                                                  |
+| `npm run package:mac` | Builds the dmgs and zips into `release/`                                                      |
+| `npm run gate`        | Typecheck, lint, format check, unit tests and the regression suite, in the order CI runs them |
+
+<Callout tone="tip" title="Two things that surprise people, and one that does not">
+**`npm install` is what fetches Electron.** npm 11 gates dependency install scripts, so Electron's
+own postinstall never runs and its binary never lands. A root `postinstall` script fetches it
+whenever it is missing — so if anything tells you Electron is missing, the answer is to run
+`npm install` again.
+
+**Nothing native compiles.** Comparison history uses Node's built-in SQLite rather than a native
+module, so there is no per-ABI rebuild step and nothing that can fail on your machine mid-install.
+
+**There is no release server and no auto-updater.** A new version means downloading a new dmg, on
+purpose: shipping an updater that points nowhere is worse than not having one.
+
+</Callout>
+
+## What is in `main` but not in 0.1.0
+
+The published 0.1.0 dmg predates several features that are on the `main` branch. Everything below is
+documented on this site because it exists in the app — but to use it today you need to build from
+source.
+
+| Not in the 0.1.0 download                                                           | Documented at                                  |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Syntax highlighting in text and code diffs                                          | [Text and code](/docs/engines/text)            |
+| Search within a diff (<Kbd>⌘F</Kbd>)                                                | [Text and code](/docs/engines/text)            |
+| The three text toolbar toggles — ignore whitespace, ignore case, collapse unchanged | [Text and code](/docs/engines/text)            |
+| Plain <Kbd>⌘V</Kbd> starting a comparison when nothing is focused                   | [Giving it two inputs](/docs/comparing/intake) |
+| Swapping sides re-running an open comparison instead of clearing it                 | [Giving it two inputs](/docs/comparing/intake) |
+
+## Where TwinScope keeps its files
+
+|                                 |                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Comparison history              | `twinscope.db` in the app's user-data directory — on macOS, `~/Library/Application Support/TwinScope/` |
+| Preferences and window geometry | `settings.json`, in the same directory                                                                 |
+| Exported reports                | Only where you choose them in the save dialog                                                          |
+
+Deleting that directory resets the app to a first-run state. Nothing else on your system is touched
+— see [Privacy](/docs/getting-started/privacy).
+
+## Next
+
+[Run your first comparison](/docs/getting-started/first-comparison).

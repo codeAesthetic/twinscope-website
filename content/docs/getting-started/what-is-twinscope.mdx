@@ -1,0 +1,91 @@
+---
+title: What is TwinScope
+description: A local-first desktop app that compares two files, folders, images or clipboard snippets — it detects what they are, runs the right engine, and explains what changed.
+lede: Drop two things in. TwinScope works out what they are, picks the engine that suits them, and opens with counts before it shows you a single line of detail. Nothing leaves your machine.
+---
+
+<MediaFigure
+  id="landing-hero"
+  alt="The compare screen with two inputs loaded and the detected engine named in the detection bar"
+  caption={
+    <>
+      <b>One front door.</b> Two slots, a detection bar that says what will run, and one key to
+      start it.
+    </>
+  }
+/>
+
+## The premise
+
+Comparison tools usually make you choose the tool first. TwinScope inverts that: you hand it two
+things, and working out what they are is its job, not yours.
+
+1. **Give it two inputs.** Drag them onto the two zones, pick them with <Kbd>⌘O</Kbd>, or paste with
+   <Kbd>⌘V</Kbd>. Files, folders, images and clipboard snippets all arrive the same way — see
+   [Giving it two inputs](/docs/comparing/intake).
+2. **It detects what they are.** Extension first, then a content sniff of the decoded text, then a
+   JSON parse probe — in that order, and for a reason. See [Type detection](/docs/comparing/detection).
+3. **The engine that suits them runs.** Off the UI thread, with live progress and a working cancel
+   button. See [Running a comparison](/docs/comparing/running-a-job).
+4. **You get counts first, detail second.** A summary strip, then the diff, then export if you need
+   to hand it to someone. See [Reading a result](/docs/comparing/reading-a-result).
+
+## The five engines
+
+| Engine                                          | Runs when                                              | What it gives you                                                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [**Text diff**](/docs/engines/text)             | Both sides are text, code, JSON, YAML, CSV or Markdown | Side-by-side, unified and inline views, with edited lines paired and marked word by word instead of appearing as unrelated deletes and adds                     |
+| [**Structural JSON diff**](/docs/engines/json)  | Both sides are JSON                                    | A tree of the parsed values, so reformatting a file changes nothing; arrays match by identity, objects compare as key sets, type changes get their own row kind |
+| [**File tree diff**](/docs/engines/folders)     | Both sides are folders                                 | A recursive scan with per-file status, rename pairing, filters, and drill-in to any file pair                                                                   |
+| [**Visual / pixel diff**](/docs/engines/images) | Both sides are images                                  | Side-by-side, overlay, blink and difference, with changed regions boxed and an adjustable threshold                                                             |
+| [**Binary comparison**](/docs/engines/binary)   | Both sides sniff as binary                             | A verdict from the sizes and a SHA-256, instead of pages of mojibake                                                                                            |
+
+<Callout tone="note" title="How the choice is made">
+  Each engine declares which pairs it can handle and how strongly it claims them. The
+  highest-claiming engine that accepts both sides wins, which is why two binaries never get
+  line-diffed and two folders never get parsed as JSON. Text sits at the bottom as the universal
+  fallback: when the two sides are *different* comparable kinds — a `.json` against a `.yml` — the
+  comparison falls through to text rather than failing, and the detection bar says so.
+</Callout>
+
+## What TwinScope is not
+
+| It is not           | Because                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A merge tool**    | It explains a difference; it never writes to your files. There is no "take left", no conflict resolution, no editor.                        |
+| **A git client**    | It compares the two things you hand it. It has no notion of repositories, branches, commits or history, and it does not shell out to `git`. |
+| **A cloud service** | There is no account, no sign-in, no upload and no server. It is a desktop app that reads two paths off your disk.                           |
+
+<Callout tone="privacy" title="No network calls at runtime">
+  TwinScope makes none. Not telemetry, not crash reports, not an update check, not a font or an icon
+  fetched from a CDN. In a packaged build the renderer's Content-Security-Policy sets `connect-src
+  'self'` and the app denies every navigation away from its own page.
+  [Privacy](/docs/getting-started/privacy) shows you how to verify that yourself rather than take
+  our word for it.
+</Callout>
+
+## Who it is for
+
+Developers who compare things all day and are tired of picking a tool for each one: an API response
+against yesterday's, a config file against the one on staging, a build output tree against the last
+release, a screenshot against the design. The workflow it is built around is copy, paste, read,
+copy again, paste again — which is why the clipboard is a first-class intake route and why history
+remembers what you compared without remembering what was in it.
+
+It also suits work you cannot upload. A comparison of two customer exports, two licence keys or two
+proprietary binaries has no business leaving the machine, and with TwinScope it does not.
+
+## What comes with it
+
+|                           |                                                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **History**               | Every completed comparison, in a local SQLite file — paths, sizes, engine and counts. **Never file contents.** [History](/docs/history/history)                                             |
+| **Export**                | A self-contained HTML report, Markdown for a pull request, or a unified patch straight to the clipboard. [Export](/docs/results/export)                                                     |
+| **Command palette**       | <Kbd>⌘K</Kbd>, with actions and recent comparisons. [Command palette](/docs/reference/command-palette)                                                                                      |
+| **One keyboard registry** | The Settings grid and the palette are generated from the same table that binds the keys, so neither can describe a shortcut the app does not have. [Keyboard map](/docs/reference/keyboard) |
+| **Both themes**           | Dark-first, light fully supported, and it can follow the system.                                                                                                                            |
+
+## Where to start
+
+[Install](/docs/getting-started/install) it, then run
+[your first comparison](/docs/getting-started/first-comparison). It takes about a minute.

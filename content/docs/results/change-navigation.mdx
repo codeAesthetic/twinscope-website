@@ -1,0 +1,59 @@
+---
+title: Change navigation
+description: One index, registered by the engine view and owned by the workspace chassis, so the summary strip, the keyboard and the scroll position can never disagree.
+lede: Step through a comparison with ‹ › or ⌥↑/⌥↓. There is exactly one index behind all of it, which is why the strip, the keys and the scroll position can never disagree.
+---
+
+Every comparison offers the same way through it: a stepper in the summary strip, and a pair of keys.
+
+| Control                            | Action          |
+| ---------------------------------- | --------------- |
+| `›` in the strip, or <Kbd>⌥↓</Kbd> | Next change     |
+| `‹` in the strip, or <Kbd>⌥↑</Kbd> | Previous change |
+
+The stepper reads `n / m`, and shows `–` for the position until you take your first step — nothing is selected when a result first opens.
+
+<MediaFigure
+  id="summary-strip"
+  alt="A summary strip with counts, engine extras and the change stepper reading 3 of 17"
+  caption={
+    <>
+      <b>Counts first, then the detail.</b> The stepper sits with the numbers it steps through.
+    </>
+  }
+/>
+
+## One index, registered by the view
+
+The engine view is the only thing that knows what its rows mean, so it declares two things: **how many changes there are**, and **how to reveal one**. The chassis owns _which change you are on_.
+
+That split is the whole design. If the summary strip counted changes itself, or the keyboard tracked its own position, there would be three answers to "which change is current" and no reason for them to agree. Instead there is one, and the strip, the keys, the scroll position and — where an engine has one — its own change list are all reading it.
+
+<Callout tone="note" title="It wraps, on purpose">
+  Stepping past the last change returns to the first, and stepping back from the first lands on the
+  last. A reviewer scanning a diff expects a loop, not a wall.
+</Callout>
+
+## What counts as "a change", per engine
+
+Each engine decides, because the unit differs.
+
+| Engine                                  | One stop is                                                                    | Notes                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| **[Text and code](/docs/engines/text)** | Every row that is not context and not a fold                                   | A modified line is **one** stop even in unified mode, where it paints as two rows     |
+| **[JSON](/docs/engines/json)**          | Every visible row that is not a container and is neither unchanged nor ignored | Containers are not stops: their state is derived from their children                  |
+| **[Folders](/docs/engines/folders)**    | Every visible file row that is not identical                                   | Directories are not stops                                                             |
+| **[Images](/docs/engines/images)**      | Each changed region                                                            | The sidebar's region list is the same index — clicking a region _is_ navigating to it |
+| **[Binary](/docs/engines/binary)**      | Nothing                                                                        | There is no detail to step through, so the stepper does not appear                    |
+
+Note the word _visible_ for JSON and folders. In those engines the search box and the status filters remove rows, and the count follows: `‹ n/m ›` describes what is on screen, not what the engine found before you filtered it. See [search and filter](/docs/results/search-and-filter).
+
+## When the count changes
+
+Re-registering resets the position to `–`. That happens when the set of changes genuinely becomes a different set: a filter changes, a normalisation option [re-runs the comparison](/docs/results/normalisation), or you open a different pair. Keeping an old index against a new list would point at the wrong row, which is worse than starting again.
+
+<Callout tone="tip" title="Finding is separate from stepping">
+  <Kbd>⏎</Kbd> and <Kbd>⇧⏎</Kbd> walk **search hits**, not changes; <Kbd>⌥↑</Kbd>/<Kbd>⌥↓</Kbd> walk
+  changes. Two indexes, deliberately — they are different questions, and the find bar has its own
+  `n/m` badge so you can always tell which one you are reading.
+</Callout>

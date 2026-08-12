@@ -1,0 +1,375 @@
+/*
+ * Landing, download and changelog pages. Ported from website.html.
+ */
+
+.ws-hero {
+  padding: 74px 0 40px;
+  text-align: center;
+}
+
+.ws-hero h1 {
+  font-size: clamp(32px, 5.4vw, 54px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  margin: 20px auto 16px;
+  max-width: 18ch;
+}
+
+.ws-hero h1 em {
+  font-style: normal;
+  color: var(--acc-2);
+}
+
+.ws-hero-sub {
+  font-size: 17px;
+  color: var(--tx-2);
+  max-width: 58ch;
+  margin: 0 auto 28px;
+}
+
+.ws-hero-cta {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.ws-hero-fine {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--tx-3);
+}
+
+.ws-heroshot {
+  margin: 42px auto 0;
+  max-width: 1000px;
+  text-align: left;
+}
+
+.ws-sec {
+  padding: 62px 0;
+  border-top: 1px solid var(--line);
+}
+
+.ws-sec-hd {
+  max-width: 62ch;
+  margin-bottom: 30px;
+}
+
+.ws-sec-hd h2 {
+  font-size: 27px;
+  font-weight: 680;
+  margin-bottom: 10px;
+}
+
+.ws-sec-hd p {
+  color: var(--tx-2);
+  margin: 0;
+  font-size: 15px;
+}
+
+/* ── engine grid ── */
+.ws-egrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 16px;
+}
+
+.ws-ecard {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: inherit;
+}
+
+.ws-ecard:hover {
+  border-color: var(--line-2);
+  background: var(--panel);
+  text-decoration: none;
+}
+
+.ws-ecard-t {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  font-size: 14.5px;
+  color: var(--tx);
+}
+
+.ws-ecard p {
+  margin: 0;
+  color: var(--tx-2);
+  font-size: 13px;
+}
+
+.ws-ecard-more {
+  margin-top: auto;
+  font-size: 12.5px;
+  color: var(--acc-2);
+}
+
+.ws-ecard[data-soon='true'] {
+  border-style: dashed;
+}
+
+.ws-ecard .ws-media {
+  margin: 0;
+}
+
+/* ── steps ── */
+.ws-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.ws-step {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  background: var(--panel-2);
+}
+
+.ws-step-n {
+  font: 700 11px/1 var(--mono);
+  color: var(--acc-2);
+  background: var(--acc-bg);
+  border: 1px solid color-mix(in srgb, var(--acc) 34%, transparent);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+
+.ws-step h3 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.ws-step p {
+  margin: 0;
+  color: var(--tx-2);
+  font-size: 13px;
+}
+
+/* ── privacy panel ── */
+.ws-privacy {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 26px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  padding: 30px;
+}
+
+.ws-privacy h2 {
+  font-size: 24px;
+  margin: 14px 0 12px;
+}
+
+.ws-privacy p {
+  color: var(--tx-2);
+  margin: 0 0 14px;
+}
+
+.ws-plist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.ws-plist li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  color: var(--tx-2);
+}
+
+.ws-plist i {
+  font-style: normal;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.ws-plist li[data-kind='yes'] i {
+  color: var(--add);
+}
+
+.ws-plist li[data-kind='no'] i {
+  color: var(--del);
+}
+
+/* ── two-column feature row ── */
+.ws-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
+  align-items: center;
+}
+
+.ws-split h2 {
+  font-size: 27px;
+  margin: 12px 0 10px;
+}
+
+.ws-split p {
+  color: var(--tx-2);
+  margin: 0 0 18px;
+}
+
+/* ── download ── */
+.ws-page {
+  padding: 56px 0 40px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.ws-page h1 {
+  font-size: 38px;
+  font-weight: 700;
+  margin: 18px 0 12px;
+}
+
+.ws-page-lede {
+  color: var(--tx-2);
+  font-size: 16px;
+  max-width: 60ch;
+  margin: 0 0 24px;
+}
+
+.ws-page h2 {
+  font-size: 22px;
+  margin: 44px 0 12px;
+}
+
+.ws-dlgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.ws-dlcard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  background: var(--panel-2);
+}
+
+.ws-dlcard[data-primary='true'] {
+  border-color: color-mix(in srgb, var(--acc) 45%, transparent);
+  background: linear-gradient(180deg, var(--acc-bg), var(--panel-2));
+}
+
+.ws-dlcard-os {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  font-size: 15px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.ws-dlcard-sz {
+  font: 500 11.5px/1 var(--mono);
+  color: var(--tx-3);
+  margin-bottom: 14px;
+  display: block;
+  word-break: break-all;
+}
+
+.ws-dlcard p {
+  color: var(--tx-2);
+  font-size: 12.5px;
+  margin: 12px 0 0;
+}
+
+.ws-sums {
+  font: 500 11.5px/1.8 var(--mono);
+  color: var(--tx-3);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px 15px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ── changelog ── */
+.ws-rel {
+  border-left: 2px solid var(--line);
+  padding: 0 0 34px 24px;
+  position: relative;
+}
+
+.ws-rel::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--acc);
+  box-shadow: 0 0 0 4px var(--acc-bg);
+}
+
+.ws-rel h2 {
+  font-size: 20px;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  scroll-margin-top: 84px;
+}
+
+.ws-rel-when {
+  font: 500 11.5px/1 var(--mono);
+  color: var(--tx-3);
+  margin-bottom: 14px;
+  display: block;
+}
+
+.ws-rel h3 {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  margin: 18px 0 8px;
+}
+
+.ws-rel ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--tx-2);
+  font-size: 13.5px;
+}
+
+.ws-rel li {
+  margin-bottom: 6px;
+}
+
+.ws-rel p {
+  color: var(--tx-2);
+  margin: 0 0 6px;
+}
+
+@media (max-width: 1080px) {
+  .ws-privacy,
+  .ws-split {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,171 @@
+---
+title: JSON
+description: A structural JSON tree rather than a line diff — reformat a file and nothing changes, reorder an array and it is still the same array, with every suppressed difference named.
+lede: A structural tree, not a line diff. Reformat a file and nothing changes; reorder an array and it is still the same array. Everything normalisation hides is counted and one click from coming back.
+---
+
+<MediaFigure
+  id="R1-json-normalisation"
+  gif
+  alt="Adding an ignored path to a JSON comparison, watching the suppressed count rise and the Explain block name what was hidden"
+  caption={
+    <>
+      <b>The normalisation rail.</b> Every option re-runs the comparison, so the counts always
+      describe the tree you are looking at.
+    </>
+  }
+/>
+
+## Structural, not line-based
+
+A text diff of two JSON documents answers the wrong question. Run a formatter and every line changes; sort the keys and every line changes again — while the data is identical. TwinScope parses both sides and walks the two values together, so the answer is about the data.
+
+<CodeBlock file="before.json" lang="json" code={`{"name":"api","retries":3,"tags":["b","a"]}`} />
+
+<CodeBlock
+  file="after.json"
+  lang="json"
+  code={`{
+  "retries": 3,
+  "name": "api",
+  "tags": ["a", "b"]
+}`}
+/>
+
+Under the defaults that pair reports **0 changes**: whitespace never existed as far as this engine is concerned, the two objects hold the same key set, and the two arrays hold the same items.
+
+## How each kind of value is compared
+
+| Value                  | How it is compared                                                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Objects**            | As the union of both sides' keys. With _ignore key order_ on, the keys are walked sorted, so declaration order carries no meaning                                                                                                                       |
+| **Arrays**             | With _ignore array order_ on, items match by identity: an item present on both sides is unchanged wherever it moved to. Leftovers on each side pair up positionally, so an _edited_ item reads as one change rather than a delete plus an unrelated add |
+| **Scalars**            | By value. A difference becomes one changed row carrying before and after                                                                                                                                                                                |
+| **A change of type**   | Its own row kind, with a note naming the transition — `number → string`                                                                                                                                                                                 |
+| **Missing vs present** | An absent key is an addition or a removal. A present `null` is _not_ the same as an absent key, unless you say so                                                                                                                                       |
+
+Every row carries a JSONPath, and container rows carry a badge summarising their subtree — `3 changed` for an object, `4 → 6 items · 2 changed` for an array.
+
+| Row          | Glyph | Meaning                                            |
+| ------------ | ----- | -------------------------------------------------- |
+| Added        | `+`   | Present only on the after side                     |
+| Removed      | `−`   | Present only on the before side                    |
+| Changed      | `~`   | Same type, different value                         |
+| Type changed | `⚠`   | The type itself differs                            |
+| Ignored      | none  | Suppressed by normalisation, shown with the reason |
+
+<Callout tone="note" title="Type changes are counted twice, deliberately">
+  A type change is a modification, so it lands in the strip's `~ modified` count — otherwise the
+  total would disagree with the tree. It *also* gets its own chip, because `"3"` where you expected
+  `3` is the kind of difference that breaks a consumer downstream.
+</Callout>
+
+<MediaFigure
+  id="json-tree"
+  alt="A JSON comparison as a tree of rows, with container badges and before-to-after values"
+  caption={
+    <>
+      <b>One row per node.</b> Containers summarise what is below them, so a collapsed tree is still
+      readable.
+    </>
+  }
+/>
+
+## The normalisation rail
+
+Four controls live in a panel beside the tree. Each one **re-runs the comparison** rather than filtering the view.
+
+| Option                 | Default | What it does                                  |
+| ---------------------- | ------- | --------------------------------------------- |
+| **Ignore key order**   | on      | Objects compare as sets of keys               |
+| **Ignore nulls**       | off     | Treats `null` and a missing key as equal      |
+| **Ignore array order** | on      | Matches array items by identity, not by index |
+| **Ignored paths**      | none    | Glob paths whose differences are suppressed   |
+
+Ignored paths are written the way you would say them — no `$` root prefix:
+
+| Pattern          | Matches                                 |
+| ---------------- | --------------------------------------- |
+| `meta.requestId` | Exactly that path                       |
+| `*.updatedAt`    | An `updatedAt` under any single segment |
+| `orders[*].etag` | The `etag` of every item in `orders`    |
+
+`*` matches one path segment and `[*]` matches any array index. Everything else in a pattern is escaped before it becomes a regular expression, so a pattern can never be an injection.
+
+<MediaFigure
+  id="json-normalisation-rail"
+  alt="The normalisation panel with ignore key order and ignore array order on, and two ignored path chips"
+  caption={
+    <>
+      <b>Ignored paths are chips.</b> Each one has an ✕, which is what makes suppression reversible
+      rather than a setting you forgot you set.
+    </>
+  }
+/>
+
+## Explain: what was hidden, and how to get it back
+
+Suppression that you cannot see is indistinguishable from a bug. So the panel ends with an Explain block that counts it — _"4 of 19 differences were suppressed by normalisation"_ — followed by a **Show them →** button that clears the ignored paths and the null equivalence in one click, and a list naming every rule that was applied to this comparison.
+
+When nothing was hidden it says so outright, rather than staying silent and leaving you to wonder.
+
+<MediaFigure
+  id="json-explain"
+  alt="The Explain block counting four suppressed differences with a Show them button and a list of the rules applied"
+  caption={
+    <>
+      <b>The same notes travel into every export.</b> A report can be read by someone who did not
+      run the comparison.
+    </>
+  }
+/>
+
+## Reading the tree
+
+- **Only changes** is on by default: unchanged leaves and whole unchanged subtrees disappear. Turn it off to see the document as a whole.
+- **Expand all** opens every container; the twisty on any container row collapses just that one.
+- Change navigation stops on every visible row that is not a container and is neither unchanged nor ignored — so what `‹ n/m ›` counts is what the current filters left on screen.
+
+## Search filters here
+
+The toolbar box is a **filter** for JSON, not a find: rows that do not match disappear. It matches case-insensitively against the key, the JSONPath, the values on both sides and any note on the row.
+
+Ancestors of a match always survive, so a hit is never orphaned from its path — you see `$ › orders › [2] › etag`, not a lone `etag` with no context.
+
+<Callout tone="note">
+  Nothing matching gives you a reason rather than an empty pane: *"No differences under the current
+  normalisation"* when the box is empty, and *"Nothing matches …"* when it is not.
+</Callout>
+
+## Copy a path or a value
+
+Right-click any row (or press the context-menu key, or <Kbd>⇧F10</Kbd>) for three items:
+
+- **Copy path** — the JSONPath, e.g. `$.user.roles[1]`
+- **Copy value (before)**
+- **Copy value (after)**
+
+A toast confirms which one you took. Object keys that are not identifiers are quoted in the path, so what you copy is always a valid JSONPath.
+
+## When the JSON does not parse
+
+A parse failure is a dead end for this engine, but not for the comparison. The error names the file and the reason, converts the byte offset into a line and column you can find in your editor, and offers **Compare as text** as a real button — one click and the same two files come back as a text diff.
+
+<MediaFigure
+  id="json-parse-error-fallback"
+  alt="A parse failure naming the file, line and column, with a Compare as text button beneath it"
+  caption={
+    <>
+      <b>An engine can offer a way out.</b> The fallback travels with the error rather than being
+      guessed at by the UI.
+    </>
+  }
+/>
+
+## Limits
+
+| Limit        | Value        | What happens past it                                                                        |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------- |
+| Depth        | 100 levels   | Deeper nodes get a row saying they were not compared                                        |
+| Nodes        | 500,000      | The walk stops and a note says the rest is not shown                                        |
+| Array length | 10,000 items | Longer arrays are matched by identity only, whatever the option says, and a note records it |

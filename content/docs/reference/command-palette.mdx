@@ -1,0 +1,100 @@
+---
+title: Command palette
+description: ⌘K opens a fuzzy-filtered list of every action and your recent comparisons, driven by the same registry as the keyboard map.
+lede: One box for everything you can do and everything you have recently compared. Type a few letters, not the exact words.
+---
+
+<Kbd>⌘K</Kbd> opens it. <Kbd>⌘K</Kbd> again closes it, as does <Kbd>Esc</Kbd> or a click outside the
+panel. Opening it clears the previous query and re-reads the recent list, so it never shows a stale
+one.
+
+<MediaFigure
+  id="palette-filtered"
+  alt="The command palette filtered to a few entries, with the Actions and Recent groups visible"
+  caption={
+    <>
+      <b>Actions and Recent, in one list.</b> The footer counts what survived the filter.
+    </>
+  }
+/>
+
+## The filter is a subsequence match
+
+Characters must appear **in order**, not adjacent. So `cf` finds _Compare
+files…_, and `hist` finds anything with those letters in sequence. Spaces in your
+query are skipped, which means you can type across word boundaries without
+thinking about them.
+
+Matching runs over each entry's label **and** its detail line, lower-cased, so
+searching `clipboard` finds _Compare clipboard_ and searching `disk` finds it too
+— via "Pick two files from disk".
+
+| Type    | Finds                                                |
+| ------- | ---------------------------------------------------- |
+| `cf`    | Compare files…                                       |
+| `cfo`   | Compare folders…                                     |
+| `theme` | Toggle theme                                         |
+| `dark`  | Toggle theme — matched on its detail, "Dark ↔ light" |
+
+When nothing matches, the palette says so and names what you typed rather than
+showing an empty box.
+
+## Moving and choosing
+
+| Keys                      | What                      |
+| ------------------------- | ------------------------- |
+| <Kbd>↑</Kbd> <Kbd>↓</Kbd> | Move the cursor           |
+| <Kbd>⏎</Kbd>              | Run the highlighted entry |
+| <Kbd>Esc</Kbd>            | Close                     |
+
+The cursor is **clamped rather than stored in range**: the list changes under it
+as you type, and an index that outlived its list would highlight nothing. Typing
+resets it to the first entry.
+
+The panel is a real dialog — `role="dialog"`, `aria-modal`, with the list as a
+`listbox` and each row an `option` carrying `aria-selected`. The input takes focus
+on open.
+
+## Two groups
+
+### Actions
+
+Actions come from the **same registry as the keyboard map**, filtered to the
+entries marked for the palette. Seven of the fifteen bindings appear here, each
+showing its keys on the right:
+
+| Action            | Keys           | Detail                        |
+| ----------------- | -------------- | ----------------------------- |
+| Compare files…    | <Kbd>⌘O</Kbd>  | Pick two files from disk      |
+| Compare folders…  | <Kbd>⌘⇧O</Kbd> | Recursive tree diff           |
+| Compare clipboard | <Kbd>⌘⇧V</Kbd> | Paste A, then paste B         |
+| Swap sides        | <Kbd>⌘⇧S</Kbd> | Before becomes after          |
+| Export report     | <Kbd>⌘⇧E</Kbd> | Repeats the last format used  |
+| Toggle theme      | <Kbd>⌘⇧L</Kbd> | Dark ↔ light                  |
+| Settings          | <Kbd>⌘,</Kbd>  | Theme, defaults and shortcuts |
+
+<Callout tone="note" title="Why it reads from the registry">
+  A second hand-maintained list is how a palette ends up advertising a key the app does not have, or
+  omitting an action from one of the two places it belongs. Reading `SHORTCUTS` means the palette
+  row, the Settings grid and the binding that actually fires are the same record. See
+  [Keyboard](/docs/reference/keyboard).
+</Callout>
+
+### Recent
+
+Up to **eight** comparisons from [history](/docs/history/history), newest first —
+enough to be useful, few enough to scan. Each row shows the pair's title, a badge
+for its type, how long ago you opened it, and its change count.
+
+Choosing one reopens it exactly as the History screen would: both inputs are
+re-read from disk and the comparison re-runs with its stored options. A pasted
+input or a file that has moved is explained rather than silently failing.
+
+## Details that matter in use
+
+- **It closes on a screen change.** Running an action that navigates dismisses the
+  palette, so it never hangs over the result of the thing it just did.
+- **The footer counts.** `N of M` — how many entries survived the filter, out of
+  how many exist. Useful for noticing that your query is narrower than you meant.
+- **Group headers disappear when empty.** Filter to something only in Actions and
+  the Recent header goes with it.

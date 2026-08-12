@@ -1,0 +1,98 @@
+---
+title: Your first comparison
+description: Three moves — give TwinScope two things, press Enter, read the result — and a short tour of what a finished comparison shows you.
+lede: Three moves. Give it two things, press Enter, read the result. The rest of this page is a tour of what comes back.
+---
+
+<MediaFigure
+  id="R6-intake-paste"
+  gif
+  alt="Copying one snippet, pasting it into the before slot, copying a second, pasting it into after, and the detection bar resolving"
+  caption={
+    <>
+      <b>Copy, paste, copy, paste.</b> The clipboard fills the empty side first, so two pastes fill
+      both slots.
+    </>
+  }
+/>
+
+## 1. Give it two things
+
+Any of these routes fills a slot, and nothing downstream cares which one you used.
+
+| Route             | How                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| **Drag and drop** | Drop a file, folder or image onto the **BEFORE** or **AFTER** zone                                |
+| **File picker**   | <Kbd>⌘O</Kbd> — opens twice, BEFORE first, then AFTER                                             |
+| **Folder picker** | <Kbd>⌘⇧O</Kbd> — same, for directories                                                            |
+| **Clipboard**     | <Kbd>⌘V</Kbd> when nothing is focused, or <Kbd>⌘⇧V</Kbd> at any time. The empty side fills first  |
+| **Neither**       | Press **Load sample comparison** on the compare screen to run a real pair through the real engine |
+
+Each filled zone shows the file's name, its size, the kind TwinScope decided it is, and the first
+few lines of it. If you got the sides the wrong way round, <Kbd>⌘⇧S</Kbd> swaps them.
+[Giving it two inputs](/docs/comparing/intake) covers every route in detail.
+
+## 2. Press <Kbd>⏎</Kbd>
+
+With both slots filled, the detection bar names what will run — `Detected: json → Structural JSON
+diff` — and the **Compare** button lights up. <Kbd>⏎</Kbd> does the same thing, as long as you are
+not typing in a text field.
+
+<MediaFigure
+  id="landing-hero"
+  alt="The compare screen with two inputs loaded and the detection bar naming the engine that will run"
+  caption={
+    <>
+      <b>The bar commits before you do.</b> It names the engine, and says so when the choice is
+      surprising.
+    </>
+  }
+/>
+
+If you would rather choose the engine yourself, the dropdown at the end of the bar overrides
+detection — see [Type detection](/docs/comparing/detection). A text pair over 10 MB asks for
+confirmation first, because a multi-megabyte diff takes a few seconds and a spinner that long looks
+like a hang.
+
+## 3. Read the result
+
+The workspace opens with the same shape for every engine.
+
+| Where               | What it tells you                                                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Toolbar**         | The engine that ran, the controls that engine owns, the search box, **Export**, and **← New comparison**                                                                                                  |
+| **Summary strip**   | `N changes`, then <Chip tone="add">＋ added</Chip> <Chip tone="del">－ removed</Chip> <Chip tone="mod">～ modified</Chip>, then whatever counts this engine adds — lines, nodes, regions, identical files |
+| **The view itself** | The diff, tree or image comparison, filling the rest of the window                                                                                                                                        |
+| **Status bar**      | Which engine ran, how the files were decoded, and how long the comparison took                                                                                                                            |
+
+Counts come first on purpose: the question is almost always _how much changed_ before it is _what
+changed_.
+
+### Step through the changes
+
+The `‹ 3 / 17 ›` stepper in the summary strip and the <Kbd>⌥↑</Kbd> / <Kbd>⌥↓</Kbd> keys share one
+index with the view, so the number, the keys and the scroll position can never disagree. See
+[Change navigation](/docs/results/change-navigation).
+
+### Take it with you
+
+**Export** offers a self-contained HTML report, Markdown for a pull request, and a unified patch
+copied straight to the clipboard. <Kbd>⌘⇧E</Kbd> repeats whichever format you used last. See
+[Export](/docs/results/export).
+
+<Callout tone="tip" title="It remembers the comparison, not the contents">
+  Finishing a comparison records it in local history — the two paths, their sizes, the engine, the
+  options and the counts. Reopening it re-reads the inputs from disk and runs again. File contents
+  are never written to that database. See [History](/docs/history/history) and
+  [Privacy](/docs/getting-started/privacy).
+</Callout>
+
+## Then read about your engine
+
+| If you compared                           | Read                                 |
+| ----------------------------------------- | ------------------------------------ |
+| Two files of code, or any text            | [Text and code](/docs/engines/text)  |
+| Two JSON documents                        | [JSON](/docs/engines/json)           |
+| Two directories                           | [Folders](/docs/engines/folders)     |
+| Two screenshots or exported assets        | [Images](/docs/engines/images)       |
+| Two executables, archives or opaque blobs | [Binary files](/docs/engines/binary) |

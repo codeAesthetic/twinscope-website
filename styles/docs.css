@@ -1,0 +1,292 @@
+/*
+ * Docs shell: sidebar, article prose, TOC rail, pager. Ported from website.html.
+ */
+
+.ws-docs {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr) 196px;
+  gap: 40px;
+  padding: 34px 0 40px;
+  align-items: start;
+}
+
+/* ── sidebar ── */
+.ws-docnav {
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.ws-docnav-grp {
+  margin-bottom: 20px;
+}
+
+.ws-grplbl {
+  font: 600 10.5px/1 var(--sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  padding: 0 8px 9px;
+  display: block;
+}
+
+.ws-docnav a {
+  display: block;
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--tx-2);
+  font-size: 13px;
+  border-left: 2px solid transparent;
+}
+
+.ws-docnav a:hover {
+  background: var(--hover);
+  color: var(--tx);
+  text-decoration: none;
+}
+
+.ws-docnav a[aria-current='page'] {
+  color: var(--acc-2);
+  background: var(--acc-bg);
+  border-left-color: var(--acc);
+  font-weight: 600;
+}
+
+/* ── TOC ── */
+.ws-toc {
+  position: sticky;
+  top: 78px;
+  font-size: 12.5px;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+}
+
+.ws-toc a {
+  display: block;
+  padding: 4px 0 4px 11px;
+  color: var(--tx-3);
+  border-left: 2px solid var(--line);
+}
+
+.ws-toc a:hover {
+  color: var(--tx-2);
+  text-decoration: none;
+}
+
+.ws-toc a[data-active='true'] {
+  color: var(--acc-2);
+  border-left-color: var(--acc);
+}
+
+.ws-toc a[data-depth='3'] {
+  padding-left: 22px;
+}
+
+/* ── breadcrumb + meta ── */
+.ws-crumb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--tx-3);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.ws-crumb a {
+  color: var(--tx-3);
+}
+
+.ws-docmeta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--tx-3);
+  margin-bottom: 26px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.ws-docmeta .ws-spacer {
+  margin-left: auto;
+}
+
+/* ── prose ── */
+.ws-prose {
+  min-width: 0;
+}
+
+.ws-prose h1 {
+  font-size: 33px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+
+.ws-lede {
+  font-size: 16.5px;
+  color: var(--tx-2);
+  margin: 0 0 8px;
+}
+
+.ws-prose h2 {
+  font-size: 21px;
+  font-weight: 660;
+  margin: 40px 0 12px;
+  scroll-margin-top: 84px;
+}
+
+.ws-prose h3 {
+  font-size: 16px;
+  font-weight: 640;
+  margin: 26px 0 8px;
+  scroll-margin-top: 84px;
+}
+
+.ws-prose p {
+  margin: 0 0 14px;
+  color: var(--tx);
+}
+
+.ws-prose ul,
+.ws-prose ol {
+  margin: 0 0 16px;
+  padding-left: 22px;
+  color: var(--tx);
+}
+
+.ws-prose li {
+  margin-bottom: 7px;
+}
+
+.ws-prose blockquote {
+  margin: 20px 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--line-2);
+  color: var(--tx-2);
+}
+
+.ws-prose hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 34px 0;
+}
+
+/* Inline code only — CodeBlock resets its own. */
+.ws-prose :not(pre) > code {
+  font-size: 12.5px;
+  background: var(--elev);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1.5px 5px;
+  color: var(--acc-2);
+}
+
+.ws-anchor {
+  color: var(--tx-3);
+  font-weight: 400;
+  opacity: 0;
+  margin-left: 8px;
+  font-size: 0.7em;
+}
+
+.ws-prose h2:hover .ws-anchor,
+.ws-prose h3:hover .ws-anchor,
+.ws-anchor:focus-visible {
+  opacity: 1;
+}
+
+/* ── pager ── */
+.ws-pager {
+  display: flex;
+  gap: 12px;
+  margin-top: 48px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.ws-pager a {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px 15px;
+  background: var(--panel-2);
+  color: var(--tx);
+}
+
+.ws-pager a:hover {
+  border-color: var(--acc);
+  text-decoration: none;
+}
+
+.ws-pager small {
+  display: block;
+  color: var(--tx-3);
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.ws-pager a[data-dir='next'] {
+  text-align: right;
+}
+
+/* ── mobile ── */
+.ws-docnav-toggle {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .ws-docs {
+    grid-template-columns: 216px minmax(0, 1fr);
+  }
+
+  .ws-toc {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .ws-docs {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .ws-docnav {
+    position: static;
+    max-height: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    background: var(--panel-2);
+  }
+
+  .ws-docnav-toggle {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--tx);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .ws-docnav[data-open='false'] .ws-docnav-groups {
+    display: none;
+  }
+
+  .ws-docnav-groups {
+    margin-top: 12px;
+  }
+
+  .ws-pager {
+    flex-direction: column;
+  }
+}

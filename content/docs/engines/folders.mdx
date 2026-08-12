@@ -1,0 +1,128 @@
+---
+title: Folders
+description: A recursive two-pass folder comparison with per-file status, cheap modification detection, rename pairing, filters, and drill-in to any file pair without re-scanning.
+lede: Two recursive scans, then one decision per path. Per-file status with a glyph as well as a colour, renames paired, and any file pair one double-click away — with the tree still there when you come back.
+---
+
+<MediaFigure
+  id="R4-folder-drill-in"
+  gif
+  alt="Double-clicking a modified file in a folder comparison to open it as a text diff, then returning through the breadcrumb to the intact tree"
+  caption={
+    <>
+      <b>Drill in, and back.</b> Returning does not re-scan — the parent comparison was kept whole.
+    </>
+  }
+/>
+
+## Two passes, not one
+
+The engine walks each side into a flat map of relative paths first, and only then decides a status per path.
+
+Keeping the walk and the comparison separate is what makes "one side could not be read" a per-entry problem instead of an aborted scan. A folder containing one protected subdirectory still produces a useful comparison: that subdirectory becomes a single error row, and everything else is compared normally.
+
+## Per-file status
+
+| Status     | Glyph | Meaning                                                |
+| ---------- | ----- | ------------------------------------------------------ |
+| Added      | `＋`  | Present only on the after side                         |
+| Deleted    | `✕`   | Present only on the before side                        |
+| Modified   | `●`   | Present on both sides, different content               |
+| Identical  | `·`   | Present on both sides, same content                    |
+| Unreadable | `!`   | One side could not be read; the row carries the reason |
+
+<Callout tone="note" title="Never colour alone">
+  Every status has a glyph as well as a colour. A comparison you cannot read is not a comparison,
+  and roughly one reader in twelve does not see red against green.
+</Callout>
+
+Rows are aligned pairs rather than two independent trees: a file that exists on one side only lines up against a visible gap, which is the only way the eye can tell what happened. Directories inherit their subtree — a folder counts as modified when anything inside it is, so a collapsed tree still tells you where to look.
+
+<MediaFigure
+  id="folder-tree"
+  alt="Two aligned folder columns with added, deleted, modified and identical rows and per-file sizes"
+  caption={
+    <>
+      <b>One row per path, two stripes.</b> An empty stripe is a file that side does not have.
+    </>
+  }
+/>
+
+## How "modified" is decided
+
+Cheapest check first, and content is only read when nothing cheaper can answer:
+
+1. **Sizes differ** → modified. One `stat` per side settles it.
+2. **Same size, same timestamp** → identical.
+3. **Same size, different timestamp** → the only ambiguous case, and the only one that costs a read: both sides are hashed with SHA-256 and compared.
+
+That ordering is why a ten-thousand-file tree stays fast. The notes for the comparison record how many files actually needed hashing, so the cost is visible rather than mysterious.
+
+<Callout tone="note" title="What a hash settles">
+  Hashing is the only step that reads content, and it only runs on the ambiguous case. It is also
+  the only reason a file rewritten to exactly the same length is still reported as modified.
+</Callout>
+
+## Renames
+
+An unmatched deletion and an unmatched addition of the **same size in the same folder** are almost always one file that moved. Those pair up: both rows keep their status, and each gains a note — `renamed from old-name` on one side, `renamed to new-name` on the other. The count appears in the summary strip.
+
+It is a deliberately conservative rule. Pairing by size within one folder is either right or obviously wrong; similarity scoring that survives an edit is later work, and guessing wrongly about a rename is worse than not guessing.
+
+## Filters
+
+Two filters, and they compose:
+
+- **Status** — All, Added, Deleted, Modified, Identical.
+- **Name** — the toolbar box. `*.ts` behaves like a shell glob (`*` and `?` both work); anything without a wildcard is a plain case-insensitive substring, because that is what typing a few letters into a filter box means.
+
+A directory survives whenever any of its children does, so filtering never leaves a file floating without its folder. When nothing survives, the pane says _"No files match this filter"_ rather than going blank.
+
+<MediaFigure
+  id="folder-filters"
+  alt="The folder toolbar with the Modified status filter active and a glob typed into the name box"
+  caption={
+    <>
+      <b>Status and name filter together.</b> The tree keeps its spine either way.
+    </>
+  }
+/>
+
+## Drill in to any file pair
+
+Double-click a row — or select it and press <Kbd>⏎</Kbd> — to open that one file pair as its own comparison, detected and routed like any other. Only files present on both sides can be opened; there is nothing to compare a deletion against.
+
+The toolbar then shows a breadcrumb back to the folder comparison. Pressing it restores the tree **without re-running anything**: the parent comparison is stashed whole, because a ten-thousand-file scan must not repeat just because someone opened a file.
+
+<Callout tone="note">
+  A drill-in is a step *inside* a comparison, not a comparison you chose to run, so it is not
+  recorded in History — otherwise the folder diff would be buried under its own files.
+</Callout>
+
+<MediaFigure
+  id="folder-drill-in"
+  alt="A file pair opened from a folder comparison, with the breadcrumb back to the parent tree in the toolbar"
+  caption={
+    <>
+      <b>The breadcrumb is the whole mechanism.</b> One click each way, no second scan.
+    </>
+  }
+/>
+
+## What is skipped, and said
+
+| Skipped                             | Why                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.git`, `node_modules`, `.DS_Store` | The ignore list. Nobody is comparing two object stores by accident                                                                               |
+| Symlinks                            | Counted and skipped rather than followed: following them risks a cycle, and comparing a link target is a different question from comparing files |
+
+Both are named in the notes for the comparison — including the number of symlinks skipped — and those notes travel into any report you export.
+
+## Limits
+
+| Limit            | Value     | What happens past it                                                                                          |
+| ---------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| Entries per side | 50,000    | The scan stops, the summary is marked a partial scan, and a note says so                                      |
+| Depth            | 40 levels | The walk stops descending and records it — a tree this deep is generated, or a symlink loop we failed to spot |
+
+Alongside the added / removed / modified counts, the strip carries this engine's own vocabulary: identical files, renames, unreadable entries, and the net size change across the whole tree.

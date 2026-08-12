@@ -1,0 +1,148 @@
+---
+title: Privacy
+description: What TwinScope stores, what it never stores, why the renderer cannot read your disk, and how to verify all of it yourself.
+lede: TwinScope makes no network calls at runtime and never writes file contents to disk. This page says precisely what it does store, where, and how to check that we are telling the truth.
+---
+
+<Callout tone="privacy" title="The short version">
+  No account. No sign-in. No telemetry. No crash reporter — not even an opt-in one. No update check.
+  No analytics, no fonts and no images fetched from anywhere. The app reads two paths off your disk,
+  compares them in a local process, and writes nothing except a small database of *what* you
+  compared and any report you explicitly save.
+</Callout>
+
+## What is stored
+
+| What                   | Where                                                                                            | Contents                                                                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Comparison history** | `twinscope.db` in the user-data directory — on macOS, `~/Library/Application Support/TwinScope/` | One row per comparison: a title, the engine id, each side's kind, display name, path and size, the engine options, the summary counts, a starred flag and two timestamps |
+| **Preferences**        | `settings.json`, same directory                                                                  | Theme, per-engine option defaults, and the window's size and position                                                                                                    |
+| **Exported reports**   | Only the path you pick in the save dialog                                                        | The comparison you chose to export — which does include content, because that is what a report is                                                                        |
+| **Pasted images**      | A temporary directory, as a PNG                                                                  | A clipboard image has to become a file before the image engine can read it, so a paste writes one                                                                        |
+
+History is capped: past 500 rows the oldest unstarred rows are dropped. Re-running the same pair
+updates its existing row instead of stacking duplicates, so the list stays a list of things you
+compared rather than of button presses. **Clear history** on the History screen deletes every row,
+starred ones included.
+
+## What is never stored
+
+**File contents.** Not in history, not in preferences, not in a cache, not in a log.
+
+The history module strips contents on the way in rather than trusting whichever part of the app
+called it — a future caller cannot leak them by forgetting to:
+
+<CodeBlock
+  file="src/main/history.ts"
+  lang="ts"
+  code={`/**
+ * The only shape that reaches the database. Contents are dropped here — not by
+ * the caller — so no future caller can leak them by forgetting.
+ */
+function strip(input: InputPayload): StoredInput {
+  return {
+    kind: input.kind,
+    name: input.name,
+    ...(input.path !== undefined ? { path: input.path } : {}),
+    size: input.size,
+  };
+}`}
+/>
+
+<Callout tone="note" title="A path is not nothing">
+  History does keep the two **paths**, because re-opening a comparison means re-reading its inputs
+  from disk. A path can be revealing on its own — `~/clients/acme/contract-final.docx` says
+  something even with the contents removed. If that matters for a particular comparison, paste it
+  instead of opening it: a pasted text snippet never has a path, so its row keeps only a placeholder
+  name and a byte count — which is also why history cannot reopen it later.
+</Callout>
+
+The Settings screen shows the two things you cannot turn on, as facts rather than as switches that
+pretend to do something: **Telemetry** (there is none) and **Store file contents in history** (off,
+permanently).
+
+<MediaFigure
+  id="settings-general"
+  alt="The Settings screen with the privacy group showing telemetry and content storage fixed off"
+  caption={
+    <>
+      <b>Fixed, not defaulted.</b> A disabled switch is more honest than one that could be flipped.
+    </>
+  }
+/>
+
+## Why the window cannot read your disk
+
+TwinScope treats its own renderer as untrusted, which is the standard threat model for anything that
+renders content: a bug in the UI layer should not become access to your filesystem.
+
+| Measure                  | Effect                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `sandbox: true`          | The renderer process runs inside the OS sandbox                                                                         |
+| `contextIsolation: true` | Page scripts and preload scripts cannot see each other's globals                                                        |
+| `nodeIntegration: false` | `require`, `process` and `fs` do not exist in the page                                                                  |
+| A narrow preload bridge  | The page can reach exactly nine keys on `window.twinscope` and nothing else — no `ipcRenderer`, and no route back to it |
+| zod validation in main   | Every payload the renderer sends is parsed and validated at the IPC boundary before anything acts on it                 |
+| Content-Security-Policy  | A packaged build allows `default-src 'self'` and `connect-src 'self'`; scripts must come from the app itself            |
+| Navigation denials       | New windows, navigation away from the app's own page, and `<webview>` embedding are all refused                         |
+| Permission denials       | Every permission request — camera, microphone, geolocation, notifications — is denied outright                          |
+
+The renderer's own build enforces the same boundary earlier: its TypeScript project omits Node's
+type definitions and a lint rule rejects any renderer file that imports `node:*`, so a violation
+fails the build rather than shipping. Reading comparison inputs off disk happens in one place — the
+engine worker process — and it is a plain Node process with no Electron access at all.
+
+<Callout tone="note" title="One exception, stated plainly">
+  Image comparison runs *in the window*, because the only image decoder available is the browser's.
+  It receives the file's bytes over the bridge and returns the same events every other engine emits.
+  It still cannot open a file itself; main reads the bytes, and refuses anything over 64 MB.
+</Callout>
+
+## Exports are the one thing that leaves
+
+An HTML or Markdown report contains the comparison, including content. That is the point of a
+report — but it only ever goes where you send it:
+
+- The format menu opens a native save dialog. Cancelling writes nothing.
+- The HTML report is **self-contained**: no scripts, no external stylesheet, no font or image
+  fetched at open time. Images inside it are embedded as `data:` URLs, so the file works on someone
+  else's machine and still calls nothing.
+- The unified patch is copied to your clipboard rather than written anywhere.
+
+## How to verify it yourself
+
+Three checks, none of which require trusting this page.
+
+**1. Read the database.** It is plain SQLite, so look at exactly what is in it:
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`cd ~/Library/Application\\ Support/TwinScope
+sqlite3 twinscope.db '.schema comparisons'
+sqlite3 twinscope.db 'select input_a, input_b, summary from comparisons limit 5;'`}
+/>
+
+You will see kinds, names, paths, sizes and counts. There is no column that could hold a file's
+contents, which is a stronger guarantee than a promise not to fill one.
+
+**2. Watch the network.** With the app running and a comparison in flight, ask the OS what sockets
+it has open:
+
+<CodeBlock file="Terminal" lang="bash" code={`lsof -i -nP | grep -i twinscope`} />
+
+It prints nothing. A firewall tool such as Little Snitch is the stricter version of the same check,
+and will never see a connection attempt to block.
+
+**3. Read the hardening.** `src/main/security.ts` is about ninety lines and holds the whole security
+posture: the CSP, the navigation and `<webview>` blocks, and the permission handler. The window
+flags sit next to it in `src/main/window.ts`. The repository's boot test asserts all of it — that
+`process`, `require` and `ipcRenderer` are undefined in the page, that `window.open` is refused,
+and that navigating away does not move the app off its own URL. A regression there is treated as a
+remote-code-execution bug, not a UI bug.
+
+<Callout tone="privacy" title="Development builds differ in one way">
+  Running from source with `npm run dev` serves the renderer over `http://localhost` from Vite and
+  adds its hot-reload websocket to the allowed `connect-src`. That connection is to your own
+  machine, and it does not exist in a packaged build.
+</Callout>
