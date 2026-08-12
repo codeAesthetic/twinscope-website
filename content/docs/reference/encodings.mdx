@@ -88,10 +88,9 @@ so invalid bytes throw rather than silently becoming replacement characters.
 
 If that fails, TwinScope falls back to Latin-1, which maps every possible byte to
 some character. The comparison is then **byte-accurate even when it is not
-readable** — an undecodable file still deserves a diff. The result is reported as
-
-<Chip>Latin-1</Chip> and flagged `lossy`, so the UI can say it guessed instead of pretending it
-knew.
+readable** — an undecodable file still deserves a diff. The encoding is reported as
+**Latin-1** and flagged `lossy`, so the UI can say it guessed instead of pretending
+it knew.
 
 <Callout tone="tip" title="Reading a lossy comparison">
   Rows are still exact byte-for-byte comparisons. What you cannot trust is the *glyphs* — mojibake
@@ -100,10 +99,9 @@ knew.
 
 ## Line endings
 
-Endings are classified as <Chip>LF</Chip>, <Chip>CRLF</Chip>, <Chip>CR</Chip> or
-
-<Chip>none</Chip>. A file containing any `\r\n` reports **CRLF**, including a mixed-ending file —
-that is the answer that surprises people, so it is the one worth surfacing.
+Endings are classified as **LF**, **CRLF**, **CR** or **none**. A file containing
+any `\r\n` reports CRLF, including a mixed-ending file — that is the answer that
+surprises people, so it is the one worth surfacing.
 
 ### Where you see it
 

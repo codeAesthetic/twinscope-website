@@ -47,6 +47,10 @@ const withMDX = createMDX({
     remarkPlugins: [
       ['remark-frontmatter', 'yaml'],
       ['remark-mdx-frontmatter', {}],
+      // MDX does not include GitHub-flavoured markdown. Without this, a pipe
+      // table is not a table — it renders as a paragraph of pipe characters,
+      // and these pages are mostly tables.
+      ['remark-gfm', {}],
     ],
     // Heading ids, from the same github-slugger that lib/toc.ts uses for the
     // TOC — so a rail link and its heading can never disagree.

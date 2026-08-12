@@ -130,9 +130,9 @@ A match spanning a mark boundary is still found: searching `timeout` matches a c
 
 ## Limits
 
-| Limit                | Value   | What happens past it                                    |
-| -------------------- | ------- | ------------------------------------------------------- |
-| Line count           | 200,000 | The comparison stops and says so, instead of hanging    |
-| Input size over IPC  | 10 MB   | Only the path crosses; the worker reads the file itself |
-| Large text input     | > 10 MB | You are asked before it runs                            |
-| 100k lines, measured | 195 ms  | On the owner's Mac, unpackaged build                    |
+| Limit                | Value                               | What happens past it                                    |
+| -------------------- | ----------------------------------- | ------------------------------------------------------- |
+| Line count           | 200,000 per side (400,000 combined) | The comparison stops and says so, instead of hanging    |
+| Input size over IPC  | 10 MB                               | Only the path crosses; the worker reads the file itself |
+| Large text input     | > 10 MB                             | You are asked before it runs                            |
+| 100k lines, measured | 195 ms                              | On the owner's Mac, unpackaged build                    |

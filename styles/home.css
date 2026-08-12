@@ -367,6 +367,63 @@
   margin: 0 0 6px;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * WEB-4 additions. Each one is a rule website.html carried as an inline style
+ * on a specific element — which a component cannot reproduce — ported here so
+ * the markup stays free of style. Tokens and geometry only.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* The hero figure *is* the app frame's content. A figure's own vertical margin
+   shows as a band of panel inside the window chrome, which is why the mock gives
+   that one figure `style="margin:0"`. Same shape as `.ws-ecard .ws-media` above. */
+.ws-heroshot .ws-media {
+  margin: 0;
+}
+
+/* An engine card's figure is a teaser, not a page figure: the mock sizes it down
+   (`.ecard .mediabox { min-height: 120px; padding: 16px }` at 16/9), and at the
+   full 180px/16-10 the picture out-shouts the words next to it. */
+.ws-ecard .ws-mediabox[data-placeholder='true'] {
+  min-height: 120px;
+  padding: 16px;
+  aspect-ratio: 16 / 9;
+}
+
+/* The changelog is narrower than the download page in the mock — bullets are the
+   whole page there, and 960px of 13.5px text is a long line to track. */
+.ws-page[data-narrow='true'] {
+  max-width: 860px;
+}
+
+/* An anchored heading has to clear the sticky 58px header, or a link to
+   `#build-it-yourself` scrolls the heading out of sight. The same 84px
+   `.ws-rel h2` already uses. */
+.ws-page h2 {
+  scroll-margin-top: 84px;
+}
+
+/* Body copy between a top-level page's sections. The mock carried this as an
+   inline `color: var(--tx-2)` per paragraph; it cannot be `.ws-page p`, because
+   that would also capture the download cards and callouts, which set their own
+   size. */
+.ws-page-note {
+  color: var(--tx-2);
+  font-size: 13.5px;
+  margin: 0 0 14px;
+  max-width: 70ch;
+}
+
+/* Two parts of the checksum block are coloured in the mock: the digest line a
+   step brighter than the surrounding mono text, and the shell prompt in the
+   accent, so the command reads as a command. */
+.ws-sums-val {
+  color: var(--tx-2);
+}
+
+.ws-sums-prompt {
+  color: var(--acc-2);
+}
+
 @media (max-width: 1080px) {
   .ws-privacy,
   .ws-split {

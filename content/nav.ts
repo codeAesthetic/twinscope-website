@@ -72,10 +72,10 @@ export const NAV: readonly NavGroup[] = [
   {
     label: 'Reference',
     items: [
-      { slug: 'reference/keyboard', title: 'Keyboard map' },
+      { slug: 'reference/keyboard', title: 'Keyboard map', short: 'Keyboard map' },
       { slug: 'reference/command-palette', title: 'Command palette' },
-      { slug: 'reference/encodings', title: 'Encodings' },
-      { slug: 'reference/limits', title: 'Limits' },
+      { slug: 'reference/encodings', title: 'Encodings and line endings', short: 'Encodings' },
+      { slug: 'reference/limits', title: 'Limits and performance', short: 'Limits' },
       { slug: 'reference/known-limits', title: 'Known limits' },
     ],
   },

@@ -1,0 +1,135 @@
+---
+title: Running a comparison
+description: Comparisons run off the UI thread in a utility process, one at a time, with live progress, a cancel that works, and survivable crashes.
+lede: A comparison is a job, not a function call. It runs in its own process, reports where it has got to, stops when you tell it to, and cannot take the window down with it.
+---
+
+<MediaFigure
+  id="progress-cancel"
+  alt="A comparison in progress with a percentage, a stage label and the cancel button in the toolbar"
+  caption={
+    <>
+      <b>Every long job is interruptible.</b> A percentage, the stage it is in, and a cancel that is
+      honoured.
+    </>
+  }
+/>
+
+## Where the work happens
+
+Comparisons are CPU-bound — a line diff over a large pair, a pixel loop, a recursive folder walk —
+and the window must not freeze while one runs. So the engines run in a separate **utility process**:
+
+- It is a plain Node process. It has no Electron APIs and no DOM, and it reads any input that was too
+  large to travel with the request. Engines never import `fs` themselves — filesystem access is
+  injected into them, which is also what lets one engine run somewhere else entirely.
+- It is spawned on your **first** comparison and reused afterwards, so the second comparison does not
+  pay the startup cost.
+- If it hangs or dies, it can be killed without taking the app with it.
+
+<Callout tone="note" title="One engine runs in the window instead">
+  Image comparison needs an image decoder, and the only one available is the window's. It runs there
+  and emits exactly the same progress and completion events, so the toolbar, the summary strip and
+  cancel behave identically — nothing above the engine can tell the difference. The decode itself is
+  off-thread, and the pixel loop hands the frame back periodically so the UI keeps painting.
+</Callout>
+
+The path a comparison takes:
+
+| Step                                                            | Where                             |
+| --------------------------------------------------------------- | --------------------------------- |
+| **Compare** or <Kbd>⏎</Kbd>                                     | The window                        |
+| The request is validated against a schema                       | Main process, at the IPC boundary |
+| The engine is resolved so the UI can name it before work begins | Main process                      |
+| The worker picks the engine and runs it                         | Utility process                   |
+| Progress, then done or error                                    | Back to the window as events      |
+
+## One job at a time
+
+TwinScope compares two things, so it runs one comparison. A second request **supersedes** the first
+rather than queueing behind it.
+
+The superseded job is not torn down mid-flight, so its progress events keep arriving for a moment.
+They are discarded: every event carries the job id it belongs to, and an event from a job that is no
+longer the current one is dropped rather than allowed to clobber the new job's state. You never see a
+percentage from a comparison you replaced, or a result that belongs to the previous pair.
+
+## Live progress
+
+While a job runs you get a percentage, a stage label under the bar, and the same percentage in the
+status bar. The stage names come from the engine, so they describe real work:
+
+| Engine  | Stages you will see                                                                      |
+| ------- | ---------------------------------------------------------------------------------------- |
+| Text    | `reading` → `comparing lines` → `done`                                                   |
+| JSON    | `reading` → `parsing` → `comparing structure` → `done`                                   |
+| Folders | `scanning <path>` → `scanned N files` (every 500) → `comparing` → `done`                 |
+| Images  | `reading` → `decoding` → `comparing pixels` → `finding regions` → `rendering difference` |
+| Binary  | `measuring` → `hashing` → `done`                                                         |
+
+## Cancelling
+
+**Cancel** appears in the toolbar for the whole time a job is running.
+
+Cancellation is **cooperative**: the host aborts a signal, and each engine checks that signal between
+units of work — after reading its inputs, between chunks, between bands of pixels. That is what makes
+a cancel instant in practice without the app having to kill anything.
+
+The workspace then shows _Comparison cancelled_ rather than a failure, because you did not hit a bug
+— you changed your mind. There is no **Copy details** button on a cancellation, for the same reason.
+
+<Callout tone="tip" title="Nothing is left behind">
+  A cancelled job records nothing in [history](/docs/history/history) and leaves the previous result
+  cleared. Your two inputs stay loaded, so you can adjust an option and run it again.
+</Callout>
+
+## If the engine process crashes
+
+| What happens                          | What you see                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| The worker exits with a job in flight | The comparison fails with _The comparison engine stopped unexpectedly. Try again._  |
+| You run another comparison            | A fresh worker is spawned automatically — no restart, no reload                     |
+| The worker fails to start three times | _The comparison engine failed to start repeatedly. Restart TwinScope to try again._ |
+
+The third case is deliberate: a spawn loop that keeps retrying forever produces an app that looks
+broken and says nothing. Three attempts, then a sentence you can act on.
+
+A failure that is not a crash gets the engine's own message. A file that was deleted between loading
+it and comparing it, for instance, fails with a message naming that file — and the failure panel has
+a **Copy details** button that puts the reason, both input names and the engine on your clipboard.
+See [Reading a result](/docs/comparing/reading-a-result).
+
+## Answers that come back immediately
+
+Some comparisons do not need diffing at all, and pretending otherwise wastes your time.
+
+| Case                                | What happens                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **The same content on both sides**  | The text engine compares the two strings, finds them equal and returns without diffing: `0 changes`, plus the line count |
+| **Two empty files**                 | The same short-circuit: `0 changes`, `0 lines`                                                                           |
+| **Two identical binaries**          | A size match, then one hash per side — _These files are byte-for-byte identical_                                         |
+| **Two binaries of different sizes** | No hashing at all: a size difference is already conclusive                                                               |
+| **Two identical images**            | _These images are identical at this threshold_                                                                           |
+
+## A large text pair asks first
+
+Over **10 MB** on either side, the Compare button does not run the comparison — it shows the size,
+warns that this will take a few seconds, and waits for **Compare anyway**. A progress bar that sits
+still for eight seconds is indistinguishable from a hang, and being asked is better than guessing.
+
+Folder and image comparisons skip the question: their cost has nothing to do with input byte size.
+
+## Limits
+
+Every limit here stops instead of hanging, and says which limit it hit.
+
+| Limit                            | Value                       | Past it                                                                                        |
+| -------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Input carried over IPC           | 10 MB                       | Only the path travels; the worker reads the file                                               |
+| Bytes handed to the image engine | 64 MB                       | Refused, with the file name and its size                                                       |
+| Text lines, both sides together  | 400,000                     | The text engine stops and says the pair is too large for the line-by-line view                 |
+| Image dimensions                 | 4096 px on the longest side | Scaled down before comparing, and the result says it was                                       |
+| Folder entries scanned           | 50,000 per side             | The scan goes partial, the summary strip carries a `partial scan` chip, and the result says so |
+| Folder depth                     | 40 levels                   | Stops descending, and says so in the result                                                    |
+| JSON nodes                       | 500,000                     | The tree stops growing rather than exhausting memory                                           |
+| JSON depth                       | 100 levels                  | Deeper nodes are marked not compared                                                           |

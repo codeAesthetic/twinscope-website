@@ -1,0 +1,117 @@
+---
+title: Normalisation
+description: Normalisation in TwinScope is explainable and reversible — anything hidden is counted, named, and one click from coming back, and it never changes what is displayed.
+lede: "Every diff tool decides what counts as a difference. TwinScope's rule is that those decisions must be explainable and reversible: anything hidden is counted, named, and one click from coming back."
+---
+
+Every diff tool normalises. It has to: two files that differ only in indentation are, for almost every purpose, the same file. The interesting question is not _whether_ a tool does this — it is whether you can find out what it did.
+
+A comparison that quietly drops differences is worse than one that shows too many, because you cannot audit it. So normalisation here is held to two invariants and one promise.
+
+## Invariant one: it never changes what is displayed
+
+Normalisation affects how two lines are **compared**, never how they are **shown**.
+
+In the text engine there is exactly one function that applies your options, and it produces a _comparison key_. The rows themselves always carry the original text. Turn on ignore-whitespace and a line whose indentation changed stops being reported as a difference — but if some other change on that line brings it into the diff, you still see its real indentation, byte for byte.
+
+<Callout tone="warn" title="This is enforced, not intended">
+  There is a test in the app asserting that rows carry their original text under every combination
+  of options. It exists because the failure mode is invisible: a diff that silently displayed its
+  own normalised text would look completely correct.
+</Callout>
+
+The one thing applied unconditionally is line endings. CRLF is folded to LF before lines are split, because a CRLF/LF mismatch is a property of the files rather than a difference anyone wants to read line by line — and it is stated in the notes of every text comparison, with the actual encoding and line ending of your input shown in the status bar.
+
+## Invariant two: options re-run the engine
+
+Changing a normalisation option does **not** filter the view. It re-runs the comparison.
+
+This sounds like an implementation detail and is actually the load-bearing decision on this page. The counts in the summary strip come from the engine. If a toggle merely hid rows in the view, the strip would still be reporting the _previous_ run — you would be looking at seventeen changes above a badge that said twenty-three, and neither number would be wrong exactly, which is the worst kind of wrong.
+
+Because the run is the source of truth, the count, the tree, the change stepper and any report you export all describe the same comparison.
+
+<Callout tone="note" title="What that costs">
+  A re-run is a real re-run, so an option change on a large pair takes as long as the original
+  comparison did. Controls that can move continuously — the image threshold slider — wait until they
+  settle rather than firing on every frame.
+</Callout>
+
+## The promise: counted, named, reversible
+
+<MediaFigure
+  id="json-explain"
+  alt="The Explain block counting suppressed differences, with a Show them button and the list of rules that were applied"
+  caption={
+    <>
+      <b>Counted, named, reversible — in one panel.</b> The number, the reason, and the way back.
+    </>
+  }
+/>
+
+Three things, every time:
+
+1. **Counted.** Where an engine suppresses specific differences, the summary strip carries a `suppressed` chip alongside the added / removed / modified counts. "No changes" never means "we dropped some".
+2. **Named.** Every comparison carries a list of the normalisation rules that were actually applied to it — not the ones available, the ones used. The JSON view shows them in its Explain block; every engine's notes travel into the [exported report](/docs/results/export), so the person reading a report can audit it without having run it.
+3. **Reversible.** The rail that hid something is the rail that brings it back. In JSON, one **Show them →** button clears the ignored paths and the null equivalence together.
+
+## Per engine
+
+### Text and code
+
+Three toggles in the toolbar.
+
+| Toggle                 | Default | What stops counting                                               |
+| ---------------------- | ------- | ----------------------------------------------------------------- |
+| **Ignore whitespace**  | on      | Leading, trailing and repeated whitespace                         |
+| **Ignore case**        | off     | Case-only differences                                             |
+| **Collapse unchanged** | on      | Runs longer than 8 unchanged lines fold to 3, expandable in place |
+
+Collapsing is the odd one out: it hides _context_, not differences, and the fold row says how many lines it is holding. Nothing is ever folded away silently.
+
+<MediaFigure
+  id="text-toggles"
+  alt="The text diff toolbar with ignore whitespace, ignore case and collapse unchanged all enabled"
+  caption={
+    <>
+      <b>Each toggle re-runs the comparison.</b> The counts beside them came back from the engine
+      that produced the rows.
+    </>
+  }
+/>
+
+### JSON
+
+| Option                 | Default | What it does                                            |
+| ---------------------- | ------- | ------------------------------------------------------- |
+| **Ignore key order**   | on      | Objects compare as sets of keys                         |
+| **Ignore nulls**       | off     | `null` and a missing key count as equal                 |
+| **Ignore array order** | on      | Array items match by identity rather than by index      |
+| **Ignored paths**      | none    | Glob paths whose differences are suppressed and counted |
+
+Ignored paths are the sharpest tool here, and the one that most needs the promise above: a pattern like `*.updatedAt` can silence a great deal. So each suppressed node still gets a row, marked ignored and labelled with the reason, and the total appears in the strip. See [the JSON engine](/docs/engines/json) for the glob syntax.
+
+### Folders
+
+Folder comparisons normalise in three ways, and name all three in their notes:
+
+- **The ignore list** — `.git`, `node_modules` and `.DS_Store` are not walked.
+- **Symlinks** are counted and skipped rather than followed. The note says how many.
+- **Content hashing** is what makes "same size, different timestamp" into a real answer instead of a guess; the note says how many files needed it.
+
+### Images
+
+The match threshold is normalisation by another name: it is the line between "these pixels differ" and "these pixels are the same". The note on every image comparison states the percentage that was actually used, so a difference figure is never quoted without the tolerance that produced it. Mismatched dimensions get their own note.
+
+### Binary
+
+The verdict names what it compared — sizes, and content hashes where the sizes matched. When a size difference already settled the question, the hash cells say _not needed_ rather than sitting empty.
+
+## Your defaults, and this comparison's options
+
+Preferences carry per-engine defaults that **seed** a new comparison; whatever you change in the toolbar wins for the pair in front of you. Settings exposes three of them directly: ignore whitespace and collapse unchanged for text, and ignore key order for JSON.
+
+<Callout tone="tip" title="Options describe the request, not the reply">
+  Swapping the two sides, or re-running after a change, keeps your options. They are a property of
+  the comparison you asked for, not of the result you got — which is why the same pair compared
+  twice with the same options gives the same answer.
+</Callout>

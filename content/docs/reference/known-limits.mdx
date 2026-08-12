@@ -1,0 +1,132 @@
+---
+title: Known limits
+description: What TwinScope 0.1.0 does not do, does approximately, or cannot verify — stated plainly rather than discovered later.
+lede: Things that are genuinely not solved, rather than things we would rather you did not notice. Each one is a real constraint with a real reason.
+---
+
+## Syntax highlighting cannot see neighbouring lines
+
+Tokenising happens **per row**, without the lines around it. An unterminated
+multi-line string therefore colours as if it started on that line, and a template
+literal spanning twenty rows will not tint all twenty consistently.
+
+This is inherent to virtualised rendering: the view only ever holds the ~50 rows
+that are on screen, so there is no earlier context to tokenise from. Highlighting a
+whole 100k-line file to colour twenty visible rows correctly would cost more than
+the feature is worth.
+
+<Callout tone="note" title="What is unaffected">
+  Change marks and search hits are exact. Highlighting is decoration on top of them, and all three
+  are resolved in one pass rather than layered — a hit inside a changed word keeps both. The colour
+  can be wrong; the diff cannot.
+</Callout>
+
+## The macOS build is unsigned
+
+Unless you build it yourself with your own Apple Developer ID, the app is not code
+signed and not notarised. macOS will refuse to open it on a machine other than the
+one that built it without a right-click → **Open**, and Gatekeeper will keep
+complaining.
+
+Signing requires a paid Apple Developer account, a Developer ID Application
+certificate and an app-specific password for notarisation. The release
+documentation in the app repository has the full checklist, including the
+`codesign --verify`, `stapler validate` and `spctl --assess` commands to confirm it
+actually worked rather than assuming it did.
+
+## Windows and Linux are best-effort
+
+Build targets exist — NSIS for Windows, AppImage and deb for Linux — and they
+produce artefacts. **Neither has been smoke-tested on its own platform**, and
+neither is a supported target for 0.1.0. macOS is the primary development target.
+
+The code is platform-aware where it needs to be (<Kbd>⌘</Kbd> matching accepts Ctrl,
+the titlebar uses a Windows overlay), but "compiles and probably runs" is not the
+same claim as "tested".
+
+## No auto-update
+
+There is no update server and no updater. `publish` is explicitly null in the
+packaging config, because shipping an updater that points nowhere is worse than not
+having one. A release is a set of files you build and hand out.
+
+The **Check for updates** switch in Settings persists a preference, but nothing acts
+on it in 0.1.0.
+
+## Two Settings rows are display-only
+
+**Density** and **Editor font** in the Appearance group render their current value
+and are not wired to anything yet. Everything else on that screen is real: theme,
+the three comparison defaults, and the shortcut grid.
+
+## Native file drops are not covered by the automated harness
+
+A native OS file _drop_ cannot be synthesised into Electron from Playwright. The
+drop path is therefore covered by unit tests over the intake logic plus manual
+checks, not by the regression suite.
+
+The same applies to native dialogs: the file and folder pickers are exercised by
+stubbing `dialog.showOpenDialog` inside the Electron main process and clicking the
+real button, which proves the wiring but not the dialog. Clipboard intake **is**
+driven honestly — the harness writes the real system clipboard — which is why so
+much of the suite pastes rather than drops.
+
+## Very large text files stop rather than stream
+
+The text engine refuses a pair whose two sides together exceed 400,000 lines,
+reporting the actual count. Streaming support for very large files — the "compare
+two 1 GB logs" case — is a later release, and is the part of the codebase most
+likely to need something faster than TypeScript.
+
+Related, smaller approximations in the text engine:
+
+- Word-level marking is skipped on lines longer than **2000 characters**, because
+  intra-line diffing is quadratic. The line still shows as modified.
+- Line endings are normalised before diffing, so a CRLF/LF mismatch never appears
+  as changed rows. It is reported in the status bar instead. See
+  [encodings](/docs/reference/encodings).
+
+## Structural comparisons approximate at the edges
+
+| Engine  | Approximation                                                                                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| JSON    | Arrays longer than **10,000 items** are matched by identity only, not by content. A normalisation note says how many arrays that applied to                   |
+| JSON    | Descent stops at **100 levels** and at **500,000 nodes**; the affected rows are annotated rather than silently dropped                                        |
+| Folders | **Symlinks are never followed** — a cycle would hang the walk. They are counted and reported                                                                  |
+| Folders | Past **50,000 entries per side** the scan is explicitly _partial_; descent stops at **40 levels**                                                             |
+| Images  | Anything larger than **4096 px** on the longest side is downscaled before comparing, with a note saying so. The pixel comparison is of the downscaled rasters |
+
+Every one of these produces a **normalisation note** in the result rather than a
+quiet approximation — the standing rule is that anything hidden is counted and
+named.
+
+## Undecodable files are compared byte-wise, not readably
+
+When strict decoding fails, TwinScope falls back to Latin-1 and flags the result
+`lossy`. The diff is byte-accurate; the glyphs may be meaningless. That is a
+deliberate choice over refusing to compare the file at all.
+
+## One comparison at a time
+
+Starting a second comparison supersedes the first. There is no queue and no
+parallel jobs, so you cannot leave a large folder scan running while you diff
+something else in the same window.
+
+## The RAM budget is unresolved
+
+Idle memory with one comparison open measures **592 MB across all processes** and
+**204 MB for the renderer alone**, against a 300 MB budget. The renderer is inside
+it; the sum across five Chromium processes is not, and no Electron app of any size
+would be.
+
+This is recorded as a question the budget needs to answer — _which number does it
+mean?_ — rather than as a regression, and it is deliberately not being optimised
+against until that is decided. The packaged smoke test prints the per-process
+breakdown on every run so the number stays visible.
+
+## Two performance figures are best-case
+
+The 1 MB and 100k-line text measurements use near-identical fixture pairs, which is
+the diff algorithm's best case. A worst-case fixture — every line changed — is still
+outstanding, so read those two figures as a floor on speed rather than a guarantee.
+See [limits and performance](/docs/reference/limits).

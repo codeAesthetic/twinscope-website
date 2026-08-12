@@ -1,0 +1,105 @@
+---
+title: Export
+description: A self-contained HTML report, Markdown for pull requests, or a unified patch straight to the clipboard — rendered locally, with no scripts and no network requests.
+lede: Three formats, one keystroke to repeat the last one. A self-contained HTML report that works on someone else's machine, Markdown for pull requests, and a unified patch straight to the clipboard.
+---
+
+The Export menu sits in the workspace toolbar, and appears once a comparison has finished.
+
+<MediaFigure
+  id="export-menu"
+  alt="The export menu open with HTML report, Markdown and unified patch options"
+  caption={
+    <>
+      <b>Three formats.</b> <Kbd>⌘⇧E</Kbd> repeats whichever you used last.
+    </>
+  }
+/>
+
+| Format            | Where it goes             | Best for                                                    |
+| ----------------- | ------------------------- | ----------------------------------------------------------- |
+| **HTML report**   | A file you choose         | Sending a comparison to someone who does not have TwinScope |
+| **Markdown**      | A file you choose         | Pasting into a pull request, a ticket or a commit message   |
+| **Unified patch** | Straight to the clipboard | Dropping a diff into a review comment                       |
+
+<Kbd>⌘⇧E</Kbd> repeats the last format you used, which is what turns exporting into a reflex rather
+than a menu hunt. The first time, it produces the HTML report.
+
+## The HTML report is self-contained
+
+One file. Double-click it and it works — on any machine, offline, with nothing installed.
+
+That is a stricter promise than "it opens in a browser", so it is worth listing what it means:
+
+- **No scripts.** Not a bundle, not an inline handler, nothing.
+- **No network requests of any kind.** No CDN stylesheet, no web font, no remote image, no analytics. The report's own footer says so, and a regression test asserts the file contains no `http` or `https` URL at all.
+- **Styles are inlined**, from a copy of the app's dark palette. A standalone file cannot import the app's stylesheet, so the palette is duplicated — and a test reads the app's tokens and fails if the copy ever drifts.
+- **Everything is escaped.** Content from your files cannot become markup in the report.
+- **Images are embedded as `data:` URLs.** A blob URL is meaningless outside the window that made it, and this file has to show its images on someone else's machine.
+- **Print styles.** Printing or saving to PDF switches to a light background with legible add and delete shading, and avoids breaking a diff block across pages.
+
+<Callout tone="privacy">
+  Rendering happens locally, in the app's main process, and the only thing that leaves is the file
+  you chose to save. Export does not weaken the rule that holds everywhere else in TwinScope: no
+  network calls at runtime, at all.
+</Callout>
+
+<MediaFigure
+  id="html-report"
+  alt="An exported HTML report showing the file names, the summary chips, the normalisation notes and the diff body"
+  caption={
+    <>
+      <b>The report leads with the same summary the app does</b> — counts, then the normalisation
+      that produced them, then the detail.
+    </>
+  }
+/>
+
+## Every report explains itself
+
+Whatever the format, a report opens with the same context the workspace gives you: both paths, which engine ran, when it was generated, the counts — and the list of [normalisation](/docs/results/normalisation) rules that were actually applied. The Markdown report also spells out the engine options it ran with, which is what makes it reproducible from the ticket it was pasted into.
+
+That last part is the point of including it. A report that says "3 changes" without saying that array order was ignored and two paths were suppressed is a number without a method.
+
+## Each engine contributes its own body
+
+The header is shared; the body is whatever a reader of _that_ comparison needs.
+
+| Engine                                  | HTML body                                                                            | Markdown body                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[Text and code](/docs/engines/text)** | Rows with line numbers, add/delete shading and word-level marks as highlighted spans | A fenced `diff` block, which renders with colour on most forges and pastes back as a patch                                                     |
+| **[JSON](/docs/engines/json)**          | A table of path, change, before, after                                               | The same table                                                                                                                                 |
+| **[Folders](/docs/engines/folders)**    | A table of file, status, sizes and any rename note                                   | The same table                                                                                                                                 |
+| **[Images](/docs/engines/images)**      | Before, after and the difference heatmap, embedded, plus a table of changed regions  | The numbers and the region table — no images, since Markdown has nowhere to put them that does not depend on a file the recipient may not have |
+| **[Binary](/docs/engines/binary)**      | None — the report carries the summary and notes and says the engine has no renderer  | The same                                                                                                                                       |
+
+<Callout tone="note" title="Two things a static file cannot do">
+  A folded run of unchanged lines becomes a single line stating how many lines it holds — there is
+  nothing to click in a file. And only changed rows make it into the JSON and folder tables; the
+  unchanged remainder of a large tree is not what a report is for.
+</Callout>
+
+## The unified patch
+
+The patch format is a clipboard action rather than a file, because pasting a diff into a review comment is the whole use case. It is a `---` / `+++` header followed by the diff body, with the word-level markers stripped.
+
+<Callout tone="warn" title="Patch means patch">
+  A unified patch is only meaningful for a text comparison. Ask for one from a JSON, folder or image
+  comparison and you get that comparison's Markdown report on the clipboard instead — a "patch" of a
+  folder tree would be a file no tool could apply.
+</Callout>
+
+## Saving, and finding it afterwards
+
+Choosing HTML or Markdown opens the system save dialog, pre-filled with a dated name:
+
+<CodeBlock
+  file="Suggested filenames"
+  lang="bash"
+  code={`twinscope-report-2026-08-13.html
+twinscope-report-2026-08-13.md`}
+/>
+
+Cancel the dialog and nothing is written — no partial file, no empty file, no toast claiming success.
+
+On a successful save a toast says **Report saved** with a **Reveal** button, which opens the containing folder with the file selected. The patch format's toast says it went to the clipboard instead, and offers no Reveal, because there is nothing on disk to reveal.

@@ -16,7 +16,7 @@ lede: TwinScope makes no network calls at runtime and never writes file contents
 | What                   | Where                                                                                            | Contents                                                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Comparison history** | `twinscope.db` in the user-data directory — on macOS, `~/Library/Application Support/TwinScope/` | One row per comparison: a title, the engine id, each side's kind, display name, path and size, the engine options, the summary counts, a starred flag and two timestamps |
-| **Preferences**        | `settings.json`, same directory                                                                  | Theme, per-engine option defaults, and the window's size and position                                                                                                    |
+| **Preferences**        | `settings.json`, same directory                                                                  | Theme, per-engine option defaults, an update-check flag, and the window's size and position                                                                              |
 | **Exported reports**   | Only the path you pick in the save dialog                                                        | The comparison you chose to export — which does include content, because that is what a report is                                                                        |
 | **Pasted images**      | A temporary directory, as a PNG                                                                  | A clipboard image has to become a file before the image engine can read it, so a paste writes one                                                                        |
 
@@ -24,6 +24,13 @@ History is capped: past 500 rows the oldest unstarred rows are dropped. Re-runni
 updates its existing row instead of stacking duplicates, so the list stays a list of things you
 compared rather than of button presses. **Clear history** on the History screen deletes every row,
 starred ones included.
+
+<Callout tone="note" title="About that update-check flag">
+  Settings has a **Check for updates** switch, and it does persist to `settings.json` — but nothing
+  acts on it. TwinScope has no auto-updater and no release server to ask, so no check happens
+  whether the flag is on or off. We would rather document a switch that does nothing than let you
+  find it in the file and wonder what it contacted.
+</Callout>
 
 ## What is never stored
 
@@ -89,8 +96,9 @@ renders content: a bug in the UI layer should not become access to your filesyst
 
 The renderer's own build enforces the same boundary earlier: its TypeScript project omits Node's
 type definitions and a lint rule rejects any renderer file that imports `node:*`, so a violation
-fails the build rather than shipping. Reading comparison inputs off disk happens in one place — the
-engine worker process — and it is a plain Node process with no Electron access at all.
+fails the build rather than shipping. Files are opened by the two processes outside the sandbox: main,
+which reads a small input once so the drop zone can preview it, and the engine worker, which opens
+anything too large to carry. The window itself never opens a file.
 
 <Callout tone="note" title="One exception, stated plainly">
   Image comparison runs *in the window*, because the only image decoder available is the browser's.

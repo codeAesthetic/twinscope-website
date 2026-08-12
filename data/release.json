@@ -1,0 +1,70 @@
+{
+  "_readme": [
+    "Release facts for /download (plan W16). The page reads every version string, filename",
+    "and size from here, so nothing about a release is hard-coded in a component.",
+    "",
+    "sha256 is deliberately null. A digest is a promise about bytes, and the 0.1.0 assets",
+    "are not published yet — inventing a plausible-looking one is worse than admitting it,",
+    "because a reader who checks would find it wrong and stop checking. Fill it in when the",
+    "release is tagged:  shasum -a 256 release/TwinScope-0.1.0-arm64.dmg",
+    "",
+    "sizeBytes for macOS is measured from the local 0.1.0 build (release/ in the app repo),",
+    "not estimated. Re-measure with:  ls -l release/",
+    "",
+    "Windows and Linux carry no size and no digest on purpose: the package scripts exist",
+    "(npm run package:win / package:linux) but the app's CI only packages macOS, and neither",
+    "target has been run on its own platform. Their card points at build-from-source rather",
+    "than a download that does not exist."
+  ],
+  "version": "0.1.0",
+  "date": "2026-08-12",
+  "releasesUrl": "https://github.com/codeAesthetic/twinscope/releases",
+  "assetsPublished": false,
+  "platforms": [
+    {
+      "id": "macos",
+      "name": "macOS",
+      "icon": "🍎",
+      "arch": "Apple silicon",
+      "filename": "TwinScope-0.1.0-arm64.dmg",
+      "sizeBytes": 124180275,
+      "sizeLabel": null,
+      "sha256": null,
+      "url": "https://github.com/codeAesthetic/twinscope/releases",
+      "buttonLabel": "Download .dmg",
+      "primary": true,
+      "tested": true,
+      "note": "macOS 13 or later. Requires one extra step to open — see below."
+    },
+    {
+      "id": "windows",
+      "name": "Windows",
+      "icon": "🪟",
+      "arch": null,
+      "filename": "TwinScope Setup 0.1.0.exe",
+      "sizeBytes": null,
+      "sizeLabel": "not published",
+      "sha256": null,
+      "url": "#build-it-yourself",
+      "buttonLabel": "Build from source",
+      "primary": false,
+      "tested": false,
+      "note": "The packaging script exists, but nothing is published for 0.1.0 and nobody has run the app on Windows. Bug reports welcome."
+    },
+    {
+      "id": "linux",
+      "name": "Linux",
+      "icon": "🐧",
+      "arch": "AppImage",
+      "filename": "TwinScope-0.1.0.AppImage",
+      "sizeBytes": null,
+      "sizeLabel": "not published",
+      "sha256": null,
+      "url": "#build-it-yourself",
+      "buttonLabel": "Build from source",
+      "primary": false,
+      "tested": false,
+      "note": "Same caveat as Windows: it builds, in theory, and no one has tried."
+    }
+  ]
+}

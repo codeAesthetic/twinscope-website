@@ -1,0 +1,199 @@
+---
+title: Architecture
+description: How a comparison travels from the Compare screen through IPC to an engine in a utility process and back — plus the engine contract and its one exception.
+lede: Four processes, one job at a time, and a single path every comparison takes. Follow it once and the rest of the codebase reads itself.
+---
+
+## The process model
+
+<CodeBlock
+  file="One comparison, end to end"
+  lang="text"
+  code={`  RENDERER (sandboxed, no node, no electron)
+  ┌──────────────────────────────────────────────────────────┐
+  │  Compare screen                                          │
+  │      │  two InputPayloads + options                      │
+  │      ▼                                                   │
+  │  compare.run()          ── zustand store                 │
+  │      │                                                   │
+  └──────┼───────────────────────────────────────────────────┘
+         │  window.twinscope.compare.start(request)
+         │      (the ONLY bridge: preload, contextIsolated)
+         ▼
+  MAIN
+  ┌──────────────────────────────────────────────────────────┐
+  │  ipc.ts        compare:start                             │
+  │      │  CompareRequestSchema.parse(payload)   ← zod       │
+  │      ▼                                                   │
+  │  engine-host   resolveEngine() → fork or reuse worker     │
+  │      │  postMessage { type: 'start', jobId, a, b, … }     │
+  └──────┼───────────────────────────────────────────────────┘
+         │
+         ▼
+  ENGINE WORKER (utilityProcess — plain node, never imports electron)
+  ┌──────────────────────────────────────────────────────────┐
+  │  registry picks the engine by canHandle + priority        │
+  │  engine.compare(a, b, options, ctx)                       │
+  │      ctx.progress(pct)  ─────────┐                        │
+  │      ctx.signal.aborted?         │                        │
+  └──────────────────────────────────┼────────────────────────┘
+                                     │ progress | done | error
+         ┌───────────────────────────┘
+         ▼
+  MAIN  engine-host  → webContents.send('compare:event')
+         │
+         ▼
+  RENDERER
+  ┌──────────────────────────────────────────────────────────┐
+  │  compareClient → compare.applyEvent(event)                │
+  │      drops any event whose jobId is not the current one    │
+  │      ▼                                                    │
+  │  Workspace  →  engineViews[result.engineId]               │
+  └──────────────────────────────────────────────────────────┘`}
+/>
+
+Four processes, each with a job:
+
+| Process           | Owns                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| **Main**          | Windows, security policy, the filesystem, IPC validation, history, settings, export             |
+| **Preload**       | The one bridge — `window.twinscope`. Sandboxed, and CommonJS because sandboxed preloads must be |
+| **Renderer**      | The UI. No `fs`, no `electron`, no direct disk access at all                                    |
+| **Engine worker** | A `utilityProcess` that runs comparison engines. Plain Node — it never imports `electron`       |
+
+## Rules the pipeline keeps
+
+### One job at a time
+
+A second request supersedes the first. `applyEvent` compares each event's `jobId`
+against the current one and drops the mismatches, which matters because a
+superseded job **keeps emitting until it notices the abort** — cancellation is
+cooperative, not instant.
+
+<CodeBlock
+  file="src/renderer/src/stores/compare.ts"
+  lang="ts"
+  code={`applyEvent: (event) => {
+  // A late event from a job the user already replaced must not clobber the
+  // current one.
+  if (event.jobId !== get().jobId) return;
+  …
+}`}
+/>
+
+### Main validates everything
+
+Every renderer payload is `zod`-parsed at the IPC boundary before anything touches
+it. A compromised renderer is the threat model context isolation exists for, so
+"the renderer sent it" is never a reason to trust a value. Handlers also return
+plain serialisable data — never a live object.
+
+### The worker is lazy, warm and disposable
+
+It is spawned on the **first** comparison, not at startup, and reused after that:
+forking costs around 50 ms and a warm process keeps the second comparison instant.
+
+If it dies, every in-flight job fails with `reason: 'crash'`, the next request
+spawns a fresh one, and after **three** failed spawns the app says to restart rather
+than looping. A bad engine cannot leave the app wedged.
+
+### Cancellation is cooperative
+
+The host aborts an `AbortSignal`; the engine is responsible for checking
+`ctx.signal.aborted` between units of work and rejecting with an `AbortError`. An
+engine that ignores the signal hangs its own job — which is why there are unit tests
+specifically for that behaviour.
+
+### Big inputs never cross IPC
+
+Over 10 MB, the input payload carries a **path only** and the worker reads the file
+itself. Nothing multi-megabyte travels between processes.
+
+## The engine contract
+
+An engine is four things and no Electron:
+
+<CodeBlock
+  file="src/engines/types.ts"
+  lang="ts"
+  code={`export interface DiffEngine<TOptions = unknown, TData = unknown> {
+  meta: EngineMeta;                    // { id, label, priority }
+  canHandle(a: InputRef, b: InputRef): boolean;
+  defaultOptions(): TOptions;
+  compare(a: InputRef, b: InputRef, options: TOptions, ctx: EngineCtx): Promise<DiffResult<TData>>;
+}
+
+export interface EngineCtx {
+  signal: AbortSignal;
+  progress(percent: number, message?: string): void;
+  fs?: HostFs;        // injected — engines never import fs
+  image?: ImageHost;  // injected — there is no portable decoder
+  yieldNow?: () => Promise<void>;
+}`}
+/>
+
+The registry picks an engine by asking each `canHandle`, with the highest `priority`
+winning when several could serve the same pair. A manual override in the UI skips
+detection and names the engine directly.
+
+Everything an engine needs from the outside world is **injected**: filesystem
+access through `ctx.fs`, image decoding through `ctx.image`, and a way to hand the
+frame back through `ctx.yieldNow`. That is what will let a CLI reuse the engines
+unchanged — see [boundaries](/docs/contributing/boundaries).
+
+### Results carry their own explanation
+
+A `DiffResult` returns the summary counts, the engine-specific data model its view
+consumes, `timings`, and `normalizationNotes` — a human-readable list of every
+normalisation that was applied. Anything hidden is counted and named; that list is
+the mechanism.
+
+### An engine can offer a way out
+
+`EngineInputError` carries an optional `fallback`. The worker forwards it as part of
+the failure event and the error panel renders it as a button — unparseable JSON
+offers **Compare as text**. Keeping the recovery path on the error means it sits
+next to the failure that caused it.
+
+## The one exception: the image engine runs in the renderer
+
+Image comparison needs a decoder, and the only one available is the window's. So
+`lib/imageCompare.ts` runs the image engine **in the renderer** and emits the same
+`CompareEvent`s, with the same shape and the same job id — the chassis cannot tell
+the difference.
+
+Moving pixels the other way is not an option either: a 4K pair is around 130 MB of
+RGBA, and the standing rule is that big data never crosses IPC.
+
+<Callout tone="warn" title="Not a Web Worker, and that is not an oversight">
+  The packaged app loads the renderer from `file://`, and Chromium refuses to construct a worker
+  from an opaque origin. Instead the decode is genuinely off-thread via `createImageBitmap`, and the
+  pixel loop calls `ctx.yieldNow()` between phases so the window keeps painting. The same `file://`
+  constraint is why syntax highlighting uses shiki's JavaScript regex engine rather than the WASM
+  oniguruma one.
+</Callout>
+
+Only `readBytes` is reachable from the renderer's `HostFs`; the other methods reject
+with an explanation, because they would need main.
+
+## Engine views
+
+A view owes the chassis exactly three things:
+
+1. **Register change navigation** — `register(count, reveal)`, returning `clear`.
+   The store owns _which_ change is current, so the summary strip, <Kbd>⌥↑</Kbd> /
+   <Kbd>⌥↓</Kbd> and the view cannot disagree.
+2. **Portal its controls** into the toolbar with `ToolbarSlot`, rather than drawing
+   its own bar.
+3. **Stay ignorant of the frame.** It receives `{ result }` and nothing else.
+
+Views are registered lazily so each one code-splits, and an engine with no
+registered view falls back to a plain summary — meaning engine logic can ship before
+its UI exists.
+
+<Callout tone="note" title="Drill-in is a store concern, not a route">
+  Opening a file pair from inside a folder comparison stashes the whole parent comparison and
+  restores it **without re-running it**. A 10,000-file scan must not repeat because someone opened
+  one file, and the parent's engine choice and options mean nothing to the nested pair, so they are
+  not inherited.
+</Callout>

@@ -1,0 +1,114 @@
+---
+title: Limits and performance
+description: Every hard cap in TwinScope with the file it comes from, plus the app's own measured performance numbers.
+lede: Every guard, cap and threshold in the app, with the source file each one lives in — and the performance numbers as measured, not as hoped.
+---
+
+Guards exist so that a pathological input answers instead of hanging. Every number
+below is a constant in the source, not a rule of thumb.
+
+## Input intake
+
+| Limit                     | Value                 | Where                                              | What happens                                                                                                                                          |
+| ------------------------- | --------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inline over IPC           | 10 MB                 | `src/main/input.ts`                                | Above it only the _path_ crosses IPC; the engine worker reads the file itself, so multi-megabyte strings never travel between processes               |
+| Large-input confirmation  | > 10 MB               | `src/renderer/src/components/home/DetectedBar.tsx` | You are asked before it runs, with the size shown, rather than being given a spinner that looks like a hang. Skipped for the folder and image engines |
+| Detection sniff           | 8192 bytes            | `src/main/input.ts`                                | Enough to detect the type and the encoding without reading the whole file                                                                             |
+| Raw bytes to the renderer | 64 MB                 | `src/main/input.ts`                                | Only the image path uses this. Past it the file is refused with its size in the message                                                               |
+| Binary NUL check          | first 8192 characters | `src/engines/encoding.ts`                          | Of the _decoded_ text — see [encodings](/docs/reference/encodings)                                                                                    |
+| UTF-16 heuristic floor    | 32 bytes              | `src/engines/encoding.ts`                          | Below it the heuristic declines to guess and returns UTF-8                                                                                            |
+| UTF-16 heuristic sample   | first 1024 bytes      | `src/engines/encoding.ts`                          |                                                                                                                                                       |
+
+## Text and code
+
+| Limit                | Value            | Where                          | What happens                                                                                                                                                                                             |
+| -------------------- | ---------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Line count           | 200,000 per side | `src/engines/text/textDiff.ts` | The guard trips when the two sides _together_ exceed 400,000 lines. The comparison stops with the actual line count in the message instead of hanging; streaming for very large files is a later release |
+| Intra-line word diff | 2000 characters  | `src/engines/text/textDiff.ts` | Word-level marking is quadratic, so it is skipped on longer lines — the line still shows as modified                                                                                                     |
+| Fold threshold       | 8 lines          | `src/engines/text/textDiff.ts` | Unchanged runs longer than this collapse                                                                                                                                                                 |
+| Fold context         | 3 lines          | `src/engines/text/textDiff.ts` | Kept at each end of a folded run                                                                                                                                                                         |
+| Pairing similarity   | 0.34             | `src/engines/text/textDiff.ts` | Below it a delete and an add are not paired into one modified row                                                                                                                                        |
+| Row height           | 20 px            | `--dd-row-height`              | Fixed, so the virtualiser needs no measurement pass                                                                                                                                                      |
+
+## JSON
+
+| Limit       | Value        | Where                          | What happens                                                                                                      |
+| ----------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Depth       | 100 levels   | `src/engines/json/jsonDiff.ts` | Stops descending, and says so: the row is annotated _deeper than 100 levels — not compared_                       |
+| Nodes       | 500,000      | `src/engines/json/jsonDiff.ts` | Stops after the cap with the note _the rest is not shown_                                                         |
+| Large array | 10,000 items | `src/engines/json/jsonDiff.ts` | Arrays longer than this are matched **by identity only**, not by content, and a normalisation note names how many |
+
+## Folders
+
+| Limit                | Value             | Where                              | What happens                                                                                    |
+| -------------------- | ----------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Entries              | 50,000 per side   | `src/engines/folder/folderDiff.ts` | The scan goes **partial** rather than making you wait, and says so                              |
+| Depth                | 40 levels         | `src/engines/folder/folderDiff.ts` | Stops descending — a tree this deep is either generated or a symlink loop that was not spotted  |
+| Symlinks             | never followed    | `src/engines/folder/folderDiff.ts` | Counted and reported as _links are not followed_; following them could hang the walk on a cycle |
+| Progress granularity | every 500 entries | `src/engines/folder/folderDiff.ts` | Often enough to feel live, rare enough to be free                                               |
+
+## Images
+
+| Limit           | Value                                           | Where                               | What happens                                                                                                                                  |
+| --------------- | ----------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Longest side    | 4096 px                                         | `src/engines/image/pixelDiff.ts`    | Larger images are downscaled before comparing, with a normalisation note saying so                                                            |
+| Zoom ceiling    | 400%                                            | `src/renderer/src/lib/imageZoom.ts` |                                                                                                                                               |
+| Zoom hard floor | 1%                                              | `src/renderer/src/lib/imageZoom.ts` | At 1% a 4096 px canvas is 41 px wide — nothing below that is a view of anything                                                               |
+| Zoom stops      | 5, 10, 25, 33, 50, 66, 100, 150, 200, 300, 400% | `src/renderer/src/lib/imageZoom.ts` | The ladder the − / + buttons walk. The current _fit_ is spliced in at runtime, so stepping out of a fitted view always passes back through it |
+| Fit             | capped at 100%                                  | `src/renderer/src/lib/imageZoom.ts` | "Fit" never magnifies — a 16 × 16 favicon filling the window is not what anyone means by fitting it                                           |
+
+The zoom **floor is relative to fit**, not flat: 25% of a 4000 px pair is 2000 px
+of pane in a 900 px stage, so a flat minimum would leave a view of both images
+unreachable however many times you clicked.
+
+## Storage and window
+
+| Limit                       | Value      | Where                                                                  |
+| --------------------------- | ---------- | ---------------------------------------------------------------------- |
+| History rows                | 500        | `src/main/history.ts` — oldest **unstarred** rows pruned past it       |
+| Palette recents             | 8          | `src/renderer/src/components/CommandPalette.tsx`                       |
+| Engine worker restarts      | 3          | `src/main/engine-host.ts` — then you are told to restart the app       |
+| Window default size         | 1440 × 900 | `src/main/window.ts`                                                   |
+| Window minimum size         | 1080 × 640 | `src/main/window.ts`                                                   |
+| Saved geometry sanity floor | 320 × 240  | `src/main/settings.ts` — anything smaller is treated as a corrupt file |
+
+## Measured performance
+
+From the project's own performance budgets, **measured 2026-08-12 on the owner's
+Mac against an unpackaged build** unless the row says otherwise. Budgets were set
+first; these are what the app actually did.
+
+| Metric                                  | Budget                  | Measured                                                              |     |
+| --------------------------------------- | ----------------------- | --------------------------------------------------------------------- | --- |
+| Cold start → interactive Compare screen | &lt; 1.5 s              | **294 ms**                                                            | ✅  |
+| 1 MB text pair, end to end              | &lt; 300 ms             | **140 ms**                                                            | ✅  |
+| 100k-line text pair                     | &lt; 3 s, UI responsive | **195 ms**                                                            | ✅  |
+| Folder scan + status, 10k files         | &lt; 5 s warm           | **820 ms for 3k × 2** (~2.7 s extrapolated)                           | ✅  |
+| 4K PNG pair, pixel diff                 | &lt; 800 ms             | **23 ms** (pixel pass; decode excluded)                               | ✅  |
+| Scroll on a 50k-row result              | 60 fps                  | **60 fps** — median frame 16.7 ms, p95 16.7 ms, 52 rows in the DOM    | ✅  |
+| Idle RAM, one comparison open           | &lt; 300 MB             | **592 MB** across all processes / **204 MB** renderer alone, packaged | ⚠️  |
+| macOS installer                         | &lt; 130 MB             | **116 MB** arm64, 118 MB x64                                          | ✅  |
+
+### How to read those numbers honestly
+
+<Callout tone="warn" title="The RAM row is the one miss, and the budget is ambiguous">
+  The renderer alone is well inside 300 MB. The sum across five Chromium processes is not — and no
+  Electron app of any size would be. The budget does not say which number it means, so it is
+  recorded as a question to settle rather than as a regression to optimise against. The packaged
+  smoke test prints the per-process breakdown on every run. The rise from an earlier 526 MB / 153 MB
+  is syntax highlighting: shiki's grammars and theme.
+</Callout>
+
+<Callout tone="note" title="The text numbers are a best case">
+  The fixture pairs used for the 1 MB and 100k-line measurements are near-identical, which is the
+  diff algorithm's best case. A worst-case fixture — every line changed — is still an open item, so
+  treat those two rows as a floor on speed rather than a worst case.
+</Callout>
+
+The scroll figure is a real instrument rather than an assertion shaped like one: it
+samples `requestAnimationFrame` deltas over 120 frames while the diff is actually
+scrolling, and prints the distribution. Its automated assertion is deliberately a
+_floor_, not the budget — frame pacing on a shared CI box is not the owner's
+machine, and a test that fails because another process got the CPU teaches nothing.
+The number worth reading is the printed p95; the assertion only catches a collapse,
+such as a virtualiser that started measuring every row.

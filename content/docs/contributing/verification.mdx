@@ -1,0 +1,226 @@
+---
+title: Verifying changes
+description: npm run verify builds and boots the real Electron app and hands you a page to drive — how to use it, and why you must always check which target booted.
+lede: A harness, not a test suite. It builds the app, boots it in Electron, and gives you a real page to click — so you can prove a claim instead of asserting one in prose.
+---
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`npm run verify           # build, then boot the app and check it
+npm run gate             # typecheck · lint · format:check · vitest · verify
+npm run verify:packaged  # boots the *packaged* app (opt-in, see below)`}
+/>
+
+## What `launchApp()` gives you
+
+<CodeBlock
+  file="e2e/helpers/launch.ts"
+  lang="ts"
+  code={`export interface Harness {
+  app: ElectronApplication;
+  page: Page;
+  target: LaunchTarget; // 'app' | 'fixture'  ← always check this
+  /** Host platform, for assertions about platform-specific chrome. */
+  platform: NodeJS.Platform;
+  /** Renderer console output, newest last. */
+  logs: string[];
+  /** Renderer console.error lines + uncaught exceptions. Assert this is empty. */
+  errors: string[];
+  /** Saves a PNG under e2e/.artifacts/screenshots and returns its absolute path. */
+  screenshot(name: string): Promise<string>;
+  close(): Promise<void>;
+}`}
+/>
+
+A typical check reads like this:
+
+<CodeBlock
+  file="e2e/regression/example.spec.ts"
+  lang="ts"
+  code={`const harness = await launchApp();
+
+try {
+expect(harness.target).toBe('app');
+
+await pasteInput(harness, 'A', beforeText);
+await pasteInput(harness, 'B', afterText);
+await harness.page.getByTestId('compare-button').click();
+
+await expect(harness.page.getByTestId('screen-workspace')).toBeVisible();
+await harness.screenshot('what-i-changed');
+expect(harness.errors).toEqual([]);
+} finally {
+await harness.close();
+}`}
+/>
+
+<Callout tone="warn" title="Always close it in a finally">
+  A leaked Electron process blocks the next run. The app takes a single-instance lock, so a stray
+  instance makes the following spec die with "target closed" rather than with anything informative.
+</Callout>
+
+## The fixture fallback, and why `target` matters
+
+If `out/main/index.js` does not exist, the harness boots a **minimal fixture
+Electron app** instead — and logs loudly that it did:
+
+<CodeBlock
+  file="e2e/helpers/launch.ts"
+  lang="ts"
+  code={`if (target === 'fixture') {
+  console.log(
+    '[harness] Real app not built (no out/main/index.js) — launching the fixture app.\\n' +
+      '[harness] Run \`npm run build\` first to verify the actual application.',
+  );
+}`}
+/>
+
+**A pass against the fixture proves the harness works, not that the app works.** So
+check `harness.target` — in an assertion, not by eye. A green run you did not look at
+is exactly how "verified" becomes untrue.
+
+<Callout tone="tip" title="The fixture is also a control">
+  Kept deliberately, not left over. If `verify` fails against the real app but passes against the
+  fixture, the harness is fine and the app is broken — which is a far more useful signal than a
+  failure you cannot localise.
+</Callout>
+
+## What counts as an error
+
+`harness.errors` collects renderer `console.error` lines, uncaught page exceptions, and
+genuinely fatal main-process output. That last filter is deliberately loose:
+
+<CodeBlock
+  file="e2e/helpers/launch.ts"
+  lang="ts"
+  code={`// Electron routes ordinary INFO logging to stderr, so only genuinely angry
+// lines count as errors; everything else is kept in \`logs\` for debugging.
+const looksFatal = (text: string): boolean =>
+  /\\b(ERROR|FATAL)\\b|Uncaught|Unhandled|\\bError:/.test(text) && !/\\bINFO\\b/.test(text);`}
+/>
+
+Electron logs INFO to stderr. Tighten that predicate and every run fails. Everything
+main printed is still in `harness.logs`, which is where to look when no window appears
+— main dying during load otherwise presents as an unexplained timeout.
+
+## Profiles and restarts
+
+Each launch gets a private `--user-data-dir`, because the app's single-instance lock
+would otherwise make the second launch in a run quit immediately, and because runs must
+not leak settings into each other.
+
+Pass `userDataDir` to reuse one deliberately — hand the same path to two launches to
+test what survives a restart. The caller owns cleanup in that case, which is the whole
+point of passing one in.
+
+<Callout tone="note" title="Inspect the database from the test process, not the app">
+  `app.evaluate` has neither `require` nor dynamic `import()`, so a dynamic import inside it fails
+  with "A dynamic import callback was not specified". Give the launch a stable `userDataDir` and
+  open the SQLite file from the *test* process instead — which also means the privacy assertion
+  reads the real bytes on disk rather than asking the app what it thinks it stored.
+</Callout>
+
+## Every feature keeps a permanent regression spec
+
+This is a standing rule, not a suggestion: **finishing a feature means extending the
+suite, in the same commit.** Add `e2e/regression/<area>.spec.ts` when the feature is a
+new area, extend the existing spec when it is not. Electron needs no browser download,
+so the whole suite runs in seconds.
+
+| Spec                        | Covers                                                                     |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `verify.spec.ts`            | Boot and security posture. Keep it small; never delete it                  |
+| `regression/app-frame`      | Chrome, navigation, screen shells, themes                                  |
+| `regression/compare-screen` | Hero, drop zones, quick cards, recent list                                 |
+| `regression/job-lifecycle`  | Progress, cancel, crash recovery                                           |
+| `regression/intake`         | Clipboard paste, detection, engine override, run                           |
+| `regression/text-diff`      | Pairing, word marks, folding, view modes                                   |
+| `regression/json-diff`      | Tree, normalisation re-run, search, copy path, parse-failure fallback      |
+| `regression/folder-diff`    | Statuses, filters, rename note, drill-in and breadcrumb                    |
+| `regression/image-diff`     | Regions, four modes, zoom, threshold re-run                                |
+| `regression/history`        | Record, reopen, star, restart, privacy, missing input                      |
+| `regression/export`         | HTML and Markdown read back off disk, patch, ⌘⇧E, cancel                   |
+| `regression/palette`        | ⌘K, fuzzy filter, ↑↓⏎, live keys, generated grid                           |
+| `regression/hardening`      | Binary verdict, encodings, identical and empty inputs, deleted input, heap |
+| `regression/scroll-perf`    | A real rAF-sampled frame-time measurement on a 50k-row result              |
+| `regression/full-loop`      | Every engine, history, export and palette in **one** app instance          |
+| `packaged.spec.ts`          | The packaged app — opt-in, see below                                       |
+
+### Two of those earn a note
+
+**`full-loop`** does not launch a fresh app per area, and that is the point: the bugs it
+can catch are the ones that only exist _between_ features — a store that does not reset
+when you switch engines, a toolbar slot two views both claim, change navigation left
+pointing at the previous result. The search store is the clearest case: the text view
+registers matches and gets an `n/m` badge, while JSON and folders use the same box as a
+filter and must not. Only a session that visits both proves the handover works.
+
+**`scroll-perf`** is a measurement rather than an assertion shaped like one. Its
+automated check is a deliberate _floor_, not the budget — frame pacing on a shared CI
+box is not a developer's machine, and a test that fails because another process got the
+CPU teaches nothing. The printed p95 is the number worth reading.
+
+## Prefer assertions a screenshot cannot make
+
+Screenshots are for the human. Assertions are for the next change.
+
+The regressions that slip through review are not the ones where the layout visibly
+collapsed — they are computed styles, ARIA state, token values and event ordering. So
+assert those:
+
+- computed styles and CSS custom-property values, rather than "it looks right"
+- `aria-pressed`, `aria-selected`, `role`, labels
+- the _order_ events arrived in, not just that they arrived
+- literal `data-` attribute values — and note that React drops attributes whose value is
+  `undefined`, which makes a false state unaddressable from both CSS and tests. Render a
+  literal string instead
+
+Then take a screenshot as well, and **look at it**. Porting the mockup's block-level
+elements to inline `span`s once collapsed stacked text onto one line; it passed every
+assertion and was only caught by a human reading the PNG. Screenshots land in
+`e2e/.artifacts/screenshots/`.
+
+## What the harness cannot do honestly
+
+|                       |                                                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Native file drops** | Cannot be synthesised into Electron from Playwright. Covered by unit tests over the intake logic plus manual checks                           |
+| **Native dialogs**    | Stubbed by replacing `dialog.showOpenDialog` inside the main process, then clicking the real picker button. Proves the wiring, not the dialog |
+| **Clipboard**         | This one _is_ honest — the harness writes the real system clipboard, which is why so much of the suite pastes rather than drops               |
+| **Fixture trees**     | Built by the test process with `node:fs`, never inside `app.evaluate`                                                                         |
+
+<Callout tone="note" title="A keypress right after boot can be lost">
+  The renderer may not have attached its listener yet. The seed helper retries the paste until the
+  drop zone fills — a single press is flaky in exactly the runs where another spec went first.
+</Callout>
+
+## The packaged smoke test is opt-in
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`npm run package:mac      # build release/TwinScope-<version>-arm64.dmg
+npm run verify:packaged  # sets TWINSCOPE_PACKAGED=1 and runs e2e/packaged.spec.ts`}
+/>
+
+It boots the **packaged** app, runs a real comparison through the packaged engine host,
+checks the database lands in the user-data directory, and prints per-process memory. It
+is opt-in because `release/` goes stale the moment source changes, and a stale pass is
+worse than no pass.
+
+<Callout tone="warn" title="Playwright's config is load-bearing">
+  Without the `testDir` and `testMatch` in `playwright.config.ts`, Playwright scans the whole
+  repository and tries to execute the vitest specs, failing with a thoroughly misleading "Vitest
+  cannot be imported in a CommonJS module".
+</Callout>
+
+## Test seams
+
+Under `NODE_ENV=test` — which the harness sets and nothing else does — main hangs
+`globalThis.__twinscopeKillEngineHost` where `app.evaluate()` can reach it, so the
+harness can prove that a worker crash is survivable. It is reachable from the test
+process only, never from the renderer.
+
+The history module also exports a seam for pointing its database at a disposable path,
+used by unit tests that import it directly.

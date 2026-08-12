@@ -1,0 +1,147 @@
+---
+title: Import boundaries
+description: The three import rules that hold TwinScope's architecture in place, why each one exists, and how ESLint enforces them.
+lede: Three rules about what may import what. They are the architecture, and two of the three fail your build rather than relying on you to remember them.
+---
+
+Architecture that lives in a document drifts. Architecture that fails `npm run lint`
+does not. TwinScope keeps three import boundaries, and the two most dangerous to
+break are enforced mechanically.
+
+## 1. The renderer cannot import node or electron
+
+<CodeBlock
+  file="eslint.config.mjs"
+  lang="js"
+  code={`// --- Renderer: React rules, and NO access to node or Electron. ---
+{
+  files: ['src/renderer/**/*.{ts,tsx}'],
+  rules: {
+    'no-restricted-imports': ['error', {
+      patterns: [{
+        group: ['node:*', 'fs', 'path', 'os', 'child_process', 'electron'],
+        message:
+          'The renderer must not touch node or Electron. Go through the preload bridge (window.twinscope).',
+      }],
+    }],
+  },
+}`}
+/>
+
+### Why
+
+**A compromised renderer is the threat model context isolation exists for.** The
+renderer displays file contents, and file contents are attacker-controlled input —
+a crafted diff, a hostile JSON blob, a malformed image. If that process could reach
+`fs` or `child_process`, a rendering bug would become arbitrary file access rather
+than a visual glitch.
+
+So the renderer talks to main through exactly one object, `window.twinscope`, exposed
+by the sandboxed preload. Main `zod`-parses every payload that arrives, because
+"the renderer sent it" is not evidence of anything.
+
+<Callout tone="note" title="Belt and braces">
+  The lint rule is the fast feedback; the type system is the backstop. `tsconfig.web.json` omits the
+  Node type definitions entirely, so a renderer file that reaches for `fs` fails to typecheck as
+  well as to lint.
+</Callout>
+
+## 2. Engines cannot import electron
+
+<CodeBlock
+  file="eslint.config.mjs"
+  lang="js"
+  code={`// --- Engines: pure logic. No Electron, so the CLI can reuse them. ---
+{
+  files: ['src/engines/**/*.ts'],
+  rules: {
+    'no-restricted-imports': ['error', {
+      patterns: [{
+        group: ['electron'],
+        message:
+          'Engines must stay host-agnostic. Filesystem access is injected via EngineCtx.fs.',
+      }],
+    }],
+  },
+}`}
+/>
+
+### Why
+
+**So a CLI can reuse them unchanged.** The comparison logic is the valuable part of
+the app and it has nothing to do with windows: a text diff is a function from two
+strings to a row model. The moment an engine imports `electron`, it can only ever run
+inside a desktop app.
+
+Everything an engine needs from its host is injected through `EngineCtx` instead —
+filesystem access as `ctx.fs`, image decoding as `ctx.image`, a yield point as
+`ctx.yieldNow`. The Electron app supplies a Node-backed implementation; a CLI would
+supply its own; a test supplies a fake.
+
+<Callout tone="tip" title="No direct fs inside an engine either">
+  This is convention rather than a lint rule, but it is load-bearing: engines reach the filesystem
+  only through `ctx.fs`. The worker's implementation lives in its own file
+  (`engine-worker/hostFs.ts`) precisely so tests exercise the real implementation rather than a copy
+  of it. The worker itself imports only `node:*` and the engines — never `electron` — because it is
+  a plain Node process.
+</Callout>
+
+## 3. `src/shared/channels.ts` takes no runtime dependency
+
+<CodeBlock
+  file="src/shared/channels.ts"
+  lang="ts"
+  code={`import type { InputKind, InputRef, Summary } from '../engines/types';
+
+/\*\*
+
+- The contract between processes: channel names, wire shapes, and the bridge.
+-
+- No _runtime_ dependency may enter this file — the sandboxed preload imports
+- it, and anything heavier lands in its bundle. Type-only imports are fine,
+- since they erase at build time. Runtime validation lives in \`./schemas\`,
+- which only main imports.
+  \*/`}
+  />
+
+### Why
+
+**The sandboxed preload imports it, and anything heavier lands in its bundle.** The
+preload is the single most security-sensitive file in the app: it runs with more
+privilege than the renderer and it is what the renderer talks to. Every runtime
+dependency pulled into `channels.ts` is pulled into that bundle too — more code in the
+privileged position, for a file whose entire job is to declare names and shapes.
+
+The whole file is therefore channel-name constants, TypeScript types, and one
+**type-only** import, which erases at build time. Runtime validation lives next door
+in `schemas.ts`, where the zod schemas are — and only main imports that.
+
+<Callout tone="warn" title="This one is upheld by review, not by a lint rule">
+  There is no `no-restricted-imports` rule for `channels.ts`. What supports it is
+  `@typescript-eslint/consistent-type-imports`, which forces any import used only for types into an
+  `import type` — so a type-only dependency cannot accidentally survive into the bundle. A genuine
+  runtime import would still pass lint, so this boundary needs a reviewer who knows why it exists.
+  Which is what this page is for.
+</Callout>
+
+## Checking your work
+
+<CodeBlock
+  file="Terminal"
+  lang="bash"
+  code={`npm run lint       # the boundary rules, plus the rest of ESLint
+npm run typecheck  # three projects: node / web / e2e
+npm run gate       # typecheck · lint · format:check · test · verify, in CI order`}
+/>
+
+A renderer file importing `node:fs` fails `npm run lint`. That is the point: the
+architecture is not a thing you have to remember, it is a thing the build checks.
+
+<Callout tone="note" title="Why they are not separate packages yet">
+  Splitting `src/engines` into its own workspace package is the obvious next step and is
+  deliberately deferred until the CLI actually exists. An earlier attempt at a monorepo of
+  raw-TypeScript workspace packages cost three days of bundler archaeology — package `exports`
+  pointing at `.ts` files cannot be resolved at runtime, and the interaction between externalised
+  dependencies and aliases is worse than the problem it solves. One package, three lint rules, until
+  something genuinely needs otherwise.
+</Callout>

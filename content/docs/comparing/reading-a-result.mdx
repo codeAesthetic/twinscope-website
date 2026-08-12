@@ -1,0 +1,137 @@
+---
+title: Reading a result
+description: The summary strip, the change stepper, the status line and the failure panel — the parts of a finished comparison that every engine shares.
+lede: 'Every comparison opens the same way: counts first, then the detail. The chassis around the diff is identical for all five engines, so learning it once is enough.'
+---
+
+<MediaFigure
+  id="summary-strip"
+  alt="The summary strip showing a change total, added, removed and modified chips, engine-specific chips and the change stepper"
+  caption={
+    <>
+      <b>Counts first, detail second.</b> How much changed is nearly always the first question.
+    </>
+  }
+/>
+
+## The summary strip
+
+| Part                                  | What it is                                                       |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `17 changes`                          | The total: added plus removed plus modified                      |
+| <Chip tone="add">＋4 added</Chip>     | Present on both sides but new here                               |
+| <Chip tone="del">－2 removed</Chip>   | Gone from the after side                                         |
+| <Chip tone="mod">～11 modified</Chip> | Changed in place                                                 |
+| Engine chips                          | Whatever this engine counts that the three above cannot express  |
+| `3 suppressed`                        | Differences that existed and were hidden by an option you set    |
+| `‹ 3 / 17 ›`                          | The change stepper                                               |
+| A trailing chip                       | `before ↔ after`, so a screenshot of the strip identifies itself |
+
+The three coloured counts come **from the engine**, not from the view. That distinction matters as
+soon as you touch a [normalisation](/docs/results/normalisation) option: those options re-run the
+comparison rather than filtering what is on screen, so the counts always describe exactly what you
+are looking at.
+
+### The chips each engine adds
+
+The strip renders these verbatim — it knows nothing about engines, which is how each one gets its own
+vocabulary without a special case.
+
+| Engine                           | Adds                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Text](/docs/engines/text)       | The line count of the longer side                                                                                                                                         |
+| [JSON](/docs/engines/json)       | The node count, and a `⚠ N type changes` chip when a value changed type                                                                                                   |
+| [Folders](/docs/engines/folders) | How many files were identical, how many were paired as renames, how many were unreadable, the total size delta, and a `partial scan` chip when the tree hit the entry cap |
+| [Images](/docs/engines/images)   | The percentage of pixels that differ, the number of changed regions, and a `size mismatch` chip when the dimensions differ                                                |
+| [Binary](/docs/engines/binary)   | The verdict — identical or different — and the byte delta when the sizes differ                                                                                           |
+
+<Callout tone="note" title="A pixel diff has no added or removed">
+  Everything it finds is a modification, so `＋0 added` and `－0 removed` are honest rather than
+  broken, and the numbers that matter are in the engine's own chips.
+</Callout>
+
+## Stepping through changes
+
+`‹ 3 / 17 ›` in the strip and <Kbd>⌥↑</Kbd> / <Kbd>⌥↓</Kbd> are the same control. So is whatever the
+view does to bring a change into sight.
+
+The view registers how many changes it has and how to reveal any one of them; the store owns _which_
+change is current. That is why the number, the keys and the scroll position cannot drift apart —
+there is only one index. Before you have stepped anywhere the position reads `–`, and with nothing to
+step through the stepper is not rendered at all.
+
+<Kbd>⌥↑</Kbd> and <Kbd>⌥↓</Kbd> only take over the keys when a comparison actually has changes;
+otherwise they are left to the system. Full detail in [Change
+navigation](/docs/results/change-navigation).
+
+## The status line
+
+The bar along the bottom carries the facts about the comparison itself rather than about the diff:
+
+| Side                 | Shows                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Left, while running  | The engine's label and the current stage                                                        |
+| Left, when finished  | Which engine ran, then how the **before** input was decoded — its encoding and its line endings |
+| Right, while running | The percentage                                                                                  |
+| Right, when finished | `Compared in 42 ms`                                                                             |
+
+Encoding and line endings live here rather than in a chip because they are facts about the _files_,
+and because they answer the question "why does line 1 differ when it looks identical?" — a byte-order
+mark or a CRLF/LF mismatch, usually. See [Encodings](/docs/reference/encodings).
+
+## The toolbar
+
+| Control                   | Notes                                                                                                                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The engine chip           | Names the engine that actually ran, which is the authoritative answer if it disagrees with the detection bar                                                                           |
+| The engine's own controls | View modes, filters, thresholds — each view portals its controls into this one toolbar rather than drawing its own                                                                     |
+| The search box            | A **find** in the text diff and a **filter** in the JSON and folder views; disabled, not inert, for views that do not use it. See [Search and filter](/docs/results/search-and-filter) |
+| **Export ▾**              | Three formats, and <Kbd>⌘⇧E</Kbd> to repeat the last one                                                                                                                               |
+| **← New comparison**      | Clears both inputs as well as the result — "new" means new                                                                                                                             |
+| A breadcrumb              | Only after a folder [drill-in](/docs/engines/folders): it returns to the parent comparison without re-running it, so a 10,000-file scan is never repeated because you opened one file  |
+
+## When a comparison fails
+
+The failure panel is deliberately plain: what happened, in the engine's own words, and the ways out.
+
+| Element                  | Behaviour                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Comparison failed**    | Anything that went wrong, including an engine crash                                                                                                     |
+| **Comparison cancelled** | You pressed Cancel. Rendered in muted text, not in the failure colour                                                                                   |
+| The message              | The engine's own — a JSON parse error names the line and column; a missing file names the file                                                          |
+| **Back to Compare**      | Returns to the two inputs                                                                                                                               |
+| **Copy details**         | Puts the reason, both input names with their kinds, and the engine on the clipboard. Not offered for a cancellation, because there is nothing to report |
+
+<CodeBlock
+  file="Clipboard, after Copy details"
+  lang="bash"
+  code={`TwinScope crash: The comparison engine stopped unexpectedly. Try again.
+before: app-v1.bin (binary)
+after:  app-v2.bin (binary)
+engine: Binary comparison`}
+/>
+
+Four lines, pasteable into an issue: the failure reason, both inputs with the kinds TwinScope decided
+they were, and the engine that was running. The kinds are there because a surprising kind is the
+cause of a surprising failure more often than the engine is.
+
+### An engine can offer a way out
+
+Some failures are only failures for _that_ engine. When one knows another engine could still say
+something useful, it attaches that suggestion to the error and the panel renders it as the primary
+button.
+
+The worked example is unparseable JSON: the structural engine cannot proceed, but the two files are
+still text, so the panel offers **Compare as text** and one click gets you a line diff of the file
+that would not parse — which is usually exactly what you need to find the stray comma.
+
+<Callout tone="tip" title="A failure is not a dead end for your inputs">
+  Both inputs stay loaded through a failure. You can override the engine, change an option, or fix
+  the file on disk and press <Kbd>⏎</Kbd> again.
+</Callout>
+
+## Taking it with you
+
+**Export** writes a self-contained HTML report or a Markdown summary, or copies a unified patch to
+the clipboard. Reports carry the same counts, options and normalisation notes you are looking at, so
+the file explains itself to whoever opens it. See [Export](/docs/results/export).

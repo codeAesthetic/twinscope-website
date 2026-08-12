@@ -1,0 +1,162 @@
+---
+title: Type detection
+description: How TwinScope decides what each input is — extension first, then a sniff of the decoded text, then a JSON parse probe — and how to override the engine it picks.
+lede: Never make someone choose an engine you can work out for yourself. Detection runs in a fixed order, says what it concluded before anything runs, and steps aside when you disagree.
+---
+
+<MediaFigure
+  id="detection-bar"
+  alt="The detection bar reading Detected json arrow Structural JSON diff, with the Compare button beside it"
+  caption={
+    <>
+      <b>It commits before you do.</b> The bar names the kind it decided and the engine that will
+      run.
+    </>
+  }
+/>
+
+## What the bar tells you
+
+With both sides filled, the detection bar shows:
+
+| Element                                                       | Meaning                                                          |
+| ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| <Chip tone="acc">Detected: json → Structural JSON diff</Chip> | The kind both sides resolved to, and the engine that claims them |
+| <Chip tone="mod">manual override</Chip>                       | You picked the engine yourself; detection is being ignored       |
+| **Compare** <Kbd>⏎</Kbd>                                      | Runs it. Disabled when no engine can handle the pair             |
+| **Auto (…)** dropdown                                         | The engine override, listing all five engines                    |
+
+Before both sides are filled it says which side it is still waiting for, so an input that silently
+failed to load is visible rather than mysterious.
+
+## The order a kind is decided
+
+Order matters here, and every step in it exists because the obvious order got something wrong.
+
+1. **A folder is structural.** It is known from the filesystem, never sniffed.
+2. **Extension next** — cheap, and usually right.
+3. **Nothing to sniff? Keep what is known.** A large binary travels as a path with no text attached;
+   re-deciding at that point would turn a known binary back into `unknown` and leave the Compare
+   button disabled with no engine to run.
+4. **A NUL byte in the first 8 KB of the decoded text** means binary.
+5. **A JSON parse probe.** The content must start and end with `{}` or `[]` _and_ parse.
+6. **Otherwise it is text.**
+
+### Known formats outrank the sniff
+
+<Callout tone="warn" title="Every PNG contains NUL bytes">
+  Which means a content sniff, on its own, calls every image binary — and a pair of binaries routes
+  to the binary engine, so two screenshots would have come back as "these files differ in size"
+  instead of a pixel diff. Detection by extension therefore wins for the formats TwinScope can
+  actually read: an image is `image`, not `binary`.
+</Callout>
+
+| Extensions                                                                                               | Kind    |
+| -------------------------------------------------------------------------------------------------------- | ------- |
+| `json` `har` `geojson`                                                                                   | `json`  |
+| `yml` `yaml`                                                                                             | `yaml`  |
+| `csv` `tsv`                                                                                              | `csv`   |
+| `md` `markdown`                                                                                          | `md`    |
+| `txt` `log`                                                                                              | `text`  |
+| `png` `jpg` `jpeg` `gif` `webp` `avif` `bmp`                                                             | `image` |
+| `ts` `tsx` `js` `jsx` `mjs` `cjs` `css` `scss` `html` `py` `sql` `rs` `go` `java` `rb` `sh` `toml` `xml` | `code`  |
+
+Anything not in that list falls through to the content checks. The same module maps those extensions
+to the language id used for [syntax highlighting](/docs/engines/text), so the two can never disagree
+about what a `.tsx` file is.
+
+### Text is decoded before it is sniffed
+
+<Callout tone="warn" title="A UTF-16 file is half NUL bytes">
+  Sniff first and it reads as binary; a real file gets refused a diff it could have had. So the
+  bytes are decoded first, and the NUL check runs against the decoded text.
+</Callout>
+
+| What the bytes start with                                                                     | Read as                                                                                                                  |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `EF BB BF`                                                                                    | UTF-8 with a BOM — the BOM is stripped, so it cannot make line 1 differ from an identical line 1                         |
+| `FF FE`                                                                                       | UTF-16 LE                                                                                                                |
+| `FE FF`                                                                                       | UTF-16 BE                                                                                                                |
+| No BOM, but over a quarter of a 1 KB sample is NUL in one byte position and none in the other | UTF-16 LE or BE                                                                                                          |
+| Anything else                                                                                 | UTF-8                                                                                                                    |
+| Bytes that are not valid in their apparent encoding                                           | Latin-1, flagged as lossy — every byte maps to a character, so the diff stays byte-accurate even when it is not readable |
+
+The alternating-NUL heuristic needs at least **32 bytes** to fire. Below that a six-byte executable
+header reads as UTF-16 BE convincingly enough to be line-diffed as text, and calling a tiny unmarked
+UTF-16 file binary is the cheaper mistake — a BOM would have caught it anyway.
+
+Line endings are detected at the same time (LF, CRLF, CR or none) and reported in the
+[status bar](/docs/comparing/reading-a-result), because "why does every line differ?" usually has a
+line-ending answer.
+
+## From kind to engine
+
+Each engine declares which pairs it accepts and how strongly it claims them. The highest claim wins.
+
+| Engine                                      | Accepts                                           | Claim                                                                  |
+| ------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Binary comparison](/docs/engines/binary)   | `binary` + `binary`                               | Highest — once both sides are opaque, nothing else has anything to say |
+| [File tree diff](/docs/engines/folders)     | `folder` + `folder`                               |                                                                        |
+| [Visual / pixel diff](/docs/engines/images) | `image` + `image`                                 |                                                                        |
+| [Structural JSON diff](/docs/engines/json)  | `json` + `json`                                   |                                                                        |
+| [Text diff](/docs/engines/text)             | Any two of `text` `code` `json` `yaml` `csv` `md` | Lowest — the universal fallback                                        |
+
+<Callout tone="note" title="YAML and CSV have no engine of their own">
+  They are recognised as kinds — which is how the file-type badge and highlighting know what they
+  are — but a `.yml` pair is line-diffed by the text engine. A structural comparison of YAML is not
+  something TwinScope does today, and a JSON-style tree for it would be a different engine, not a
+  setting.
+</Callout>
+
+## When the two sides are different kinds
+
+<MediaFigure
+  id="detection-mismatch"
+  alt="The detection bar showing two different kinds and the chip explaining that the pair is being compared as text"
+  caption={
+    <>
+      <b>An unexpected engine explains itself.</b> Two different kinds, one text diff, and a chip
+      saying so.
+    </>
+  }
+/>
+
+A `.json` against a `.yml` is a real thing to want to compare. Rather than refuse it, the pair falls
+through to the text engine — and because that choice is surprising, the bar adds a chip saying the
+kinds differ and that it is comparing as text. The `Detected:` chip names both kinds in that case.
+
+If no engine accepts the pair at all — a folder against a file — the bar reads `no engine` and the
+**Compare** button is disabled. Overriding the engine will enable it, but the engine you chose gets
+to refuse: pick the folder engine for a file pair and it fails with _Folder comparison needs two
+folders on disk_, which is a clearer answer than a comparison that pretends to work.
+
+## Overriding the engine
+
+<MediaFigure
+  id="detection-override"
+  alt="The engine dropdown open with all five engines listed and the manual override chip visible"
+  caption={
+    <>
+      <b>Detection steps aside.</b> The override chip appears so a surprising result is never a
+      mystery.
+    </>
+  }
+/>
+
+The dropdown at the end of the bar lists every engine, with `Auto (…)` naming what detection would
+have chosen. Picking one:
+
+- adds the <Chip tone="mod">manual override</Chip> chip,
+- clears any finished result and the options that belonged to it, because a different engine's
+  options are unrelated,
+- and sticks for that pair until you change an input or set it back to `Auto`.
+
+Reopening a comparison from [history](/docs/history/history) sets the engine explicitly too — the
+stored row names the engine that ran, so a reopened comparison cannot quietly change engine because
+a file was renamed since.
+
+<Callout tone="note" title="Detection runs twice, on purpose">
+  The bar detects in the window so the label is instant. The engine host resolves the engine again,
+  for real, when the job starts. If you ever see the bar name one engine and the toolbar report
+  another, the second one is the truth — and that is a bug worth reporting.
+</Callout>
