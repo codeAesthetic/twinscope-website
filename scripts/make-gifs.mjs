@@ -66,8 +66,24 @@ for (const id of ids) {
   const dir = join(clipsDir, id);
   const webm = join(dir, `${id}.webm`);
   const metaFile = join(dir, `${id}.json`);
+  const existingGif = join(gifsOut, `${id}.gif`);
+
   if (!existsSync(webm)) {
-    console.warn(`[make-gifs] ${id}: no webm, skipped.`);
+    /*
+     * The intermediate is gone but the GIF survives, so the poster can still be
+     * refreshed from the frame the reader would actually see. Lower fidelity than
+     * the source — it is already quantised — but it matches the GIF exactly,
+     * which means no visual jump when play is pressed. Keeps one command working
+     * whether or not the captures have been cleaned up.
+     */
+    if (existsSync(existingGif)) {
+      const poster = join(stillsOut, `${id}.png`);
+      ff(['-ss', '0', '-i', existingGif, '-frames:v', '1', '-update', '1', poster]);
+      console.log(`[make-gifs] ${id}: poster refreshed from the existing GIF (no webm).`);
+      made++;
+      continue;
+    }
+    console.warn(`[make-gifs] ${id}: no webm and no gif, skipped.`);
     continue;
   }
 
@@ -87,9 +103,19 @@ for (const id of ids) {
   const trim = ['-ss', String(startS), '-t', String(duration)];
 
   try {
-    // Poster: the first frame of the trimmed range, same crop, full resolution.
+    /*
+     * Poster: a frame 60% through the clip, not the first one.
+     *
+     * The first frame is whatever the app looked like the instant recording
+     * started — usually mid-transition, and for several clips essentially blank.
+     * A figure whose poster looks empty reads as broken until someone presses
+     * play, which defeats the point of poster-first. 60% is past the setup and
+     * before any final flourish, so it shows the state the clip is *about*.
+     */
+    const posterAt = startS + duration * 0.6;
     ff([
-      ...trim,
+      '-ss',
+      String(posterAt),
       '-i',
       webm,
       '-vf',

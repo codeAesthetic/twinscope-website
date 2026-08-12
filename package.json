@@ -25,7 +25,8 @@
     "verify": "playwright test",
     "check:docs": "node scripts/check-docs.mjs",
     "check:links": "node scripts/check-links.mjs",
-    "media:gifs": "node scripts/make-gifs.mjs"
+    "media:gifs": "node scripts/make-gifs.mjs",
+    "media": "npm run media:gifs && npm run media:optimise && npm run check:media"
   },
   "dependencies": {
     "@mdx-js/react": "3.1.1",
