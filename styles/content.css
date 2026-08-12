@@ -38,16 +38,50 @@
   border-color: color-mix(in srgb, var(--acc) 50%, var(--line));
 }
 
+/*
+ * The play button used to be `inset: 0` — the entire figure — which meant it
+ * swallowed every click, including the ones now meant for zoom. It is a centred
+ * target instead, and the dimming wash it used to provide moved to a
+ * non-interactive overlay so the rest of the image stays clickable.
+ */
 .ws-mediabox-play {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--bg) 35%, transparent);
+  background: none;
   border: 0;
+  padding: 0;
   cursor: pointer;
   color: var(--tx);
   font: inherit;
+  z-index: 2;
+}
+
+.ws-mediabox[data-playable='true'] .ws-mediabox-zoom::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 32%, transparent);
+  pointer-events: none;
+}
+
+.ws-mediabox[data-playable='true']:has(.ws-mediabox-play:hover) .ws-mediabox-zoom::after {
+  background: color-mix(in srgb, var(--bg) 20%, transparent);
+}
+
+/* The image itself is the zoom control: a button, so it is keyboard reachable. */
+.ws-mediabox-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+  line-height: 0;
 }
 
 .ws-mediabox-play span {
@@ -463,4 +497,80 @@ table.ws-table tr:hover td {
 .ws-palette-esc:hover {
   color: var(--tx);
   border-color: var(--acc);
+}
+
+/* ── Lightbox: a figure at a size where the capture's detail is legible ── */
+.ws-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+  padding: 5vh 4vw;
+  cursor: zoom-out;
+  /* Scrolls for a capture taller than the viewport — the normalisation rail is
+     520×1506. `place-items: center` inside an overflow container clips the top of
+     tall content, so the figure is centred with auto margins instead. */
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.ws-lightbox-fig {
+  margin: auto;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: fit-content;
+}
+
+/*
+ * Constrained on both axes, keeping aspect ratio. The captures include a
+ * 2472×134 strip and a 520×1506 rail, so fitting to a fixed box would distort
+ * one or crop the other.
+ */
+.ws-lightbox-fig img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.ws-lightbox-fig figcaption {
+  color: var(--tx-2);
+  font-size: 13px;
+  text-align: center;
+  max-width: 70ch;
+  margin: 0 auto;
+}
+
+.ws-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--tx-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ws-lightbox-close:hover {
+  background: var(--hover);
+  color: var(--tx);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-lightbox {
+    backdrop-filter: none;
+  }
 }

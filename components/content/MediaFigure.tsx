@@ -12,6 +12,8 @@ export interface MediaFigureProps {
   /** Alt text. Say what changed, not "screenshot of TwinScope". */
   alt: string;
   caption?: ReactNode;
+  /** Plain-text caption for the zoomed view, where JSX would be overkill. */
+  captionText?: string;
   /** Declare that this figure has an animated version. */
   gif?: boolean;
   /**
@@ -63,6 +65,7 @@ export function MediaFigure({
   width,
   height,
   priority = false,
+  captionText,
 }: MediaFigureProps) {
   const stillRel = `/media/stills/${id}.png`;
   const gifRel = `/media/gifs/${id}.gif`;
@@ -94,6 +97,7 @@ export function MediaFigure({
         width={width ?? measured?.width ?? 1440}
         height={height ?? measured?.height ?? 872}
         priority={priority}
+        caption={captionText}
       />
       {caption ? <figcaption>{caption}</figcaption> : null}
     </figure>

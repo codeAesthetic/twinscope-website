@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { FLAT_NAV, groupOf } from '@/content/nav';
+import { useDismissible } from '@/lib/useDismissible';
 
 /**
  * Page search over `nav.ts`, with the app's palette behaviour: a fuzzy
@@ -61,33 +62,9 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
   }, []);
 
-  /**
-   * Escape lives on the document, not on the text field.
-   *
-   * It used to be an `onKeyDown` on the input, which works only while the input
-   * has focus — and focus left it the moment anyone clicked the page, which (see
-   * the portal note below) did not close the dialog either. The two defects
-   * combined into a dialog with no way out except picking a result.
-   */
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onClose();
-      }
-    }
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
-  /** The page behind a modal should not scroll. */
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
+  // Escape-anywhere and the background scroll lock are shared with the lightbox;
+  // both were bugs here first. See lib/useDismissible.ts.
+  useDismissible(onClose);
 
   const go = useCallback(
     (slug: string) => {

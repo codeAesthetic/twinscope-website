@@ -168,3 +168,144 @@ test('pressing play is what fetches the GIF, and only then', async ({ page }) =>
   // A GIF cannot be paused, so there is nothing to press twice.
   await expect(figure.locator('.ws-mediabox-play')).toHaveCount(0);
 });
+
+// ── click-to-zoom ────────────────────────────────────────────────────────────
+
+/**
+ * Figures render at about 638px in the docs column while the captures are
+ * 1000–4976px wide, so the detail is in the asset and simply not visible. Zoom is
+ * where it becomes readable.
+ *
+ * These assert the two sizing rules that were got wrong on the first attempt:
+ * never upscale (an enlarged screenshot of text is less legible, not more), and
+ * scroll rather than shrink for a tall capture — a `max-height: 80vh` made the
+ * 520×1506 normalisation rail *smaller* zoomed (222×640) than inline (638×1848).
+ */
+test('clicking a figure opens it larger, without upscaling past the asset', async ({ page }) => {
+  await page.goto(docsPath('engines/json'));
+
+  const figure = page.locator('.ws-mediabox-zoom').first();
+  const inlineWidth = await figure
+    .locator('img')
+    .evaluate((el) => Math.round(el.getBoundingClientRect().width));
+
+  // Off-centre on purpose: the play circle owns the middle of a GIF figure and
+  // correctly intercepts a click there.
+  await figure.click({ position: { x: 40, y: 30 } });
+
+  const zoomed = page.locator('.ws-lightbox-fig img');
+  await expect(zoomed).toBeVisible();
+
+  const sizes = await zoomed.evaluate((el) => {
+    const img = el as HTMLImageElement;
+    const rect = img.getBoundingClientRect();
+    return {
+      shown: Math.round(rect.width),
+      natural: img.naturalWidth,
+      innerWidth: window.innerWidth,
+    };
+  });
+
+  expect(sizes.shown, 'zoom should be larger than the inline figure').toBeGreaterThan(inlineWidth);
+  // +2 for the 1px border on each side, which border-box includes in the rect.
+  expect(sizes.shown, 'zoom must never upscale past the asset').toBeLessThanOrEqual(
+    sizes.natural + 2,
+  );
+  expect(sizes.shown, 'zoom must fit the viewport').toBeLessThanOrEqual(sizes.innerWidth);
+});
+
+test('the zoom overlay covers the viewport and is portalled out of the header', async ({
+  page,
+}) => {
+  await page.goto(docsPath('engines/json'));
+  await page
+    .locator('.ws-mediabox-zoom')
+    .first()
+    .click({ position: { x: 40, y: 30 } });
+
+  const overlay = page.locator('.ws-lightbox');
+  await expect(overlay).toBeVisible();
+
+  const box = await overlay.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(Math.round(box!.width)).toBe(viewport.width);
+  expect(Math.round(box!.height)).toBe(viewport.height);
+
+  // The header carries backdrop-filter, which would trap a fixed overlay inside it.
+  const insideHeader = await page.evaluate(
+    () =>
+      document.querySelector('.ws-hd')?.contains(document.querySelector('.ws-lightbox')) ?? false,
+  );
+  expect(insideHeader, 'the overlay must be portalled to <body>').toBe(false);
+});
+
+test('Escape, clicking outside, and the close button all dismiss the zoom', async ({ page }) => {
+  await page.goto(docsPath('engines/json'));
+  const overlay = page.locator('.ws-lightbox');
+  const figure = page.locator('.ws-mediabox-zoom').first();
+
+  const offCentre = { position: { x: 40, y: 30 } } as const;
+
+  await figure.click(offCentre);
+  await expect(overlay).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press('Escape');
+  await expect(overlay).toBeHidden();
+
+  await figure.click(offCentre);
+  await expect(overlay).toBeVisible();
+  const viewport = page.viewportSize()!;
+  await page.mouse.click(12, viewport.height - 12);
+  await expect(overlay).toBeHidden();
+
+  await figure.click(offCentre);
+  await expect(overlay).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(overlay).toBeHidden();
+
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe('hidden');
+});
+
+test('a tall capture keeps its width and scrolls instead of shrinking', async ({ page }) => {
+  await page.goto(docsPath('engines/json'));
+
+  // The normalisation rail is 520×1506 — taller than any viewport.
+  const rail = page.locator('.ws-mediabox-zoom img[src*="normalisation-rail"]');
+  await rail.evaluate((el) => (el as HTMLImageElement).closest('button')!.click());
+
+  const zoomed = page.locator('.ws-lightbox-fig img');
+  await expect(zoomed).toBeVisible();
+
+  const state = await zoomed.evaluate((el) => {
+    const img = el as HTMLImageElement;
+    const rect = img.getBoundingClientRect();
+    const overlay = document.querySelector('.ws-lightbox')!;
+    return {
+      shown: Math.round(rect.width),
+      natural: img.naturalWidth,
+      scrollable: overlay.scrollHeight > overlay.clientHeight,
+      topNotClipped: rect.top >= -1,
+    };
+  });
+
+  expect(state.shown, 'a tall capture keeps its native width').toBe(state.natural);
+  expect(state.scrollable, 'it should scroll rather than be shrunk to fit').toBe(true);
+  expect(state.topNotClipped, 'centring inside an overflow box must not clip the top').toBe(true);
+});
+
+test('the play button is its own target, not the whole figure', async ({ page }) => {
+  await page.goto(docsPath('engines/json'));
+
+  const play = page.locator('.ws-mediabox-play').first();
+  await expect(play).toBeVisible();
+
+  const boxes = await page.evaluate(() => {
+    const figure = document.querySelector('.ws-mediabox[data-playable="true"]')!;
+    const playRect = figure.querySelector('.ws-mediabox-play')!.getBoundingClientRect();
+    const zoomRect = figure.querySelector('.ws-mediabox-zoom')!.getBoundingClientRect();
+    return { play: Math.round(playRect.width), zoom: Math.round(zoomRect.width) };
+  });
+
+  // It used to be `inset: 0`, which swallowed every click meant for zoom.
+  expect(boxes.play, 'play must not cover the figure').toBeLessThan(boxes.zoom / 2);
+});
