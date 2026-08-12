@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -110,7 +111,10 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           <ul className="ws-palette-list">
             {results.map((row, index) => (
               <li key={row.item.slug}>
-                <a
+                {/* next/link, not a bare <a>: a raw href skips basePath, so on
+                    Pages every result resolved to /docs/… at the domain root —
+                    a 404 for every reader, invisible in local dev at /. */}
+                <Link
                   href={`/docs/${row.item.slug}`}
                   data-selected={index === Math.min(cursor, results.length - 1) ? 'true' : 'false'}
                   onMouseEnter={() => setCursor(index)}
@@ -118,7 +122,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                 >
                   <b>{row.item.title}</b>
                   <span className="ws-palette-sub">{row.group}</span>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

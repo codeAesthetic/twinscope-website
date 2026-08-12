@@ -207,7 +207,14 @@
   overflow-x: auto;
   font-size: 12.5px;
   line-height: 1.65;
-  background: transparent !important;
+  /* The shiki theme's own background, not our panel: its token colours are
+     designed against it, and forcing a different backdrop is what pushed light
+     theme tokens under AA. */
+  background: var(--shiki-dark-bg, var(--panel-2)) !important;
+}
+
+html[data-theme='light'] .ws-code pre {
+  background: var(--shiki-light-bg, var(--panel-2)) !important;
 }
 
 .ws-code pre code {
@@ -286,7 +293,7 @@ html[data-theme='light'] .ws-code span[style*='--shiki'] {
   background: var(--del-bg);
 }
 .ws-drow[data-kind='add'] .ws-drow-ln {
-  color: var(--add);
+  color: var(--add-tx);
 }
 .ws-drow[data-kind='del'] .ws-drow-ln {
   color: var(--del);

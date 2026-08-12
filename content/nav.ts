@@ -83,8 +83,8 @@ export const NAV: readonly NavGroup[] = [
     label: 'Contributing',
     items: [
       { slug: 'contributing/architecture', title: 'Architecture' },
-      { slug: 'contributing/boundaries', title: 'Boundaries' },
-      { slug: 'contributing/verification', title: 'Verification' },
+      { slug: 'contributing/boundaries', title: 'Import boundaries', short: 'Boundaries' },
+      { slug: 'contributing/verification', title: 'Verifying changes', short: 'Verification' },
     ],
   },
 ];

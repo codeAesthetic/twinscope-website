@@ -41,6 +41,9 @@ const TYPES = {
   '.gif': 'image/gif',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  // Pages serves sitemap.xml as XML; without this the local preview says
+  // octet-stream and a spec asserting the header would pass only in production.
+  '.xml': 'application/xml; charset=utf-8',
   '.woff2': 'font/woff2',
 };
 

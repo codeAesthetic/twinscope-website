@@ -78,18 +78,24 @@ test('the header is present, sticky, and marks the current section', async ({ pa
 });
 
 /**
- * The palette's links are plain `<a href>`, so nothing adds the base path for
- * them. A root-relative href on a project Pages site resolves against the origin
- * root — `/docs/engines/text` rather than `/twinscope-website/docs/engines/text`
- * — which is a 404 for every reader and invisible locally unless `out/` is
- * served the way Pages serves it (W7).
+ * The palette's links must carry the base path. A root-relative href on a project
+ * Pages site resolves against the origin root — `/docs/engines/text` rather than
+ * `/twinscope-website/docs/engines/text` — which is a 404 for every reader and
+ * invisible locally unless `out/` is served the way Pages serves it (W7). This is
+ * why the results use `next/link` rather than a bare anchor.
  */
 test('the ⌘K palette keeps its links inside the base path', async ({ page }) => {
   await page.goto(routePath(SAMPLE_DOC));
-  await page.keyboard.press('ControlOrMeta+k');
 
   const dialog = page.getByRole('dialog', { name: 'Search docs' });
-  await expect(dialog).toBeVisible();
+
+  // ⌘K is bound by an effect, so a press sent before hydration lands nowhere and
+  // the test fails on a race rather than on the behaviour. Retry the key until
+  // the dialog appears — the same shape as the app harness's seeded paste.
+  await expect(async () => {
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(dialog).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
 
   const hrefs = await dialog
     .locator('a')
@@ -171,7 +177,7 @@ test('dark is the default, the system is honoured, and a stored choice wins', as
   }
 
   // A stored choice outranks the system in both directions.
-  const systemDark = await browser.newContext({ colorScheme: 'dark' });
+  const systemDark = await browser.newContext({ baseURL: ORIGIN, colorScheme: 'dark' });
   try {
     const page = await systemDark.newPage();
     await page.addInitScript((key) => localStorage.setItem(key, 'light'), THEME_KEY);

@@ -204,7 +204,7 @@
 }
 
 .ws-plist li[data-kind='yes'] i {
-  color: var(--add);
+  color: var(--add-tx);
 }
 
 .ws-plist li[data-kind='no'] i {

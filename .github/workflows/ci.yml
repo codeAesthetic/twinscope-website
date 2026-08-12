@@ -26,6 +26,21 @@ jobs:
       # No app checkout here, so this reports "skipping" rather than failing.
       # Drift is caught locally, where both repos exist.
       - run: npm run check:tokens
+      # Before the build on purpose: the same failure from Turbopack is a
+      # 60-second error, and this is a one-line message.
+      - run: npm run check:docs
       - run: npm run build
       - run: npm run check:external
+      - run: npm run check:links
       - run: npm run check:media
+
+      # The only network the suite needs; the run itself is offline.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run verify
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

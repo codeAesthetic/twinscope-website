@@ -2,7 +2,7 @@
   "name": "twinscope-website",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentation site for TwinScope \u2014 static Next.js, deployed to GitHub Pages.",
+  "description": "Documentation site for TwinScope — static Next.js, deployed to GitHub Pages.",
   "license": "MIT",
   "engines": {
     "node": ">=24"
@@ -18,11 +18,14 @@
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:media": "node scripts/check-media-budget.mjs",
     "check:external": "node scripts/check-no-external.mjs",
-    "gate": "npm run typecheck && npm run lint && npm run format:check && npm run check:tokens && npm run build && npm run check:external && npm run check:media",
+    "gate": "npm run typecheck && npm run lint && npm run format:check && npm run check:tokens && npm run check:docs && npm run build && npm run check:external && npm run check:links && npm run check:media && npm run verify",
     "sync:tokens": "node scripts/sync-tokens.mjs",
     "media:optimise": "node scripts/optimise-stills.mjs",
     "media:sync": "node scripts/sync-media.mjs",
-    "verify": "playwright test"
+    "verify": "playwright test",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:links": "node scripts/check-links.mjs",
+    "media:gifs": "node scripts/make-gifs.mjs"
   },
   "dependencies": {
     "@mdx-js/react": "3.1.1",

@@ -81,8 +81,9 @@
 }
 
 .ws-btn[data-variant='primary'] {
-  background: var(--acc);
-  border-color: var(--acc);
+  /* --acc-fill, not --acc: white label text needs AA against what is behind it. */
+  background: var(--acc-fill);
+  border-color: var(--acc-fill);
   color: #fff;
   box-shadow: 0 6px 22px color-mix(in srgb, var(--acc) 32%, transparent);
 }
@@ -92,12 +93,19 @@
   border-color: var(--acc-2);
 }
 
-/* On the accent fill, a key hint needs its own contrast — the token pair is
-   tuned for panel backgrounds, not for white-on-violet. */
+/*
+ * A key hint on the accent fill needs its own contrast: the token pair is tuned
+ * for panel backgrounds, not for white-on-violet.
+ *
+ * The obvious treatment — translucent *white* backing — is what fails. Lightening
+ * the backdrop closes the gap to the white text on top of it: 3.6:1 at 85% text
+ * on a 12% white wash. Darkening instead opens the gap, so the backing is black
+ * at 22% and the text is fully opaque. 7.9:1, and it still reads as a key.
+ */
 .ws-btn[data-variant='primary'] .ws-kbd {
-  color: rgba(255, 255, 255, 0.85);
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .ws-btn[data-size='lg'] {
@@ -126,7 +134,7 @@
 }
 
 .ws-chip[data-tone='add'] {
-  color: var(--add);
+  color: var(--add-tx);
   background: var(--add-bg);
   border-color: color-mix(in srgb, var(--add) 34%, transparent);
 }
@@ -138,7 +146,7 @@
 }
 
 .ws-chip[data-tone='mod'] {
-  color: var(--mod);
+  color: var(--mod-tx);
   background: var(--mod-bg);
   border-color: color-mix(in srgb, var(--mod) 34%, transparent);
 }

@@ -290,3 +290,30 @@
     flex-direction: column;
   }
 }
+
+/*
+ * Prose links carry an underline, not just a colour.
+ *
+ * axe's `link-in-text-block` is right about this: a link identified by hue alone
+ * is invisible to a reader who cannot separate that hue from the body colour.
+ * Scoped to prose so navigation, the sidebar and the TOC — where position and
+ * grouping already identify a link — stay clean.
+ */
+.ws-prose p a,
+.ws-prose li a,
+.ws-prose td a,
+.ws-prose blockquote a,
+.ws-callout a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--acc-2) 55%, transparent);
+}
+
+.ws-prose p a:hover,
+.ws-prose li a:hover,
+.ws-prose td a:hover,
+.ws-prose blockquote a:hover,
+.ws-callout a:hover {
+  text-decoration-color: var(--acc-2);
+}

@@ -6,7 +6,7 @@ import { DocsSidebar } from '@/components/docs/DocsSidebar';
 import { Pager } from '@/components/docs/Pager';
 import { TocRail } from '@/components/docs/TocRail';
 import { FLAT_NAV, groupOf, navItem } from '@/content/nav';
-import { SITE } from '@/lib/site';
+import { SITE, absoluteUrl } from '@/lib/site';
 import { frontmatterOf, headingsOf } from '@/lib/toc';
 
 /**
@@ -77,8 +77,54 @@ export default async function DocPage({ params }: Params) {
   const group = groupOf(slug);
   const editUrl = `${SITE.websiteRepo}/edit/main/content/docs/${slug}.mdx`;
 
+  /**
+   * Structured data (plan W18). Two typed blocks rather than one @graph: `TechArticle` tells a
+   * crawler what the page *is*, `BreadcrumbList` tells it where the page sits, and
+   * a search result showing "Docs › Engines › Text and code" is worth more than a
+   * bare title. Emitted as JSON, not hand-written, so it cannot fall out of step
+   * with the nav.
+   */
+  const articleLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    headline: front.title,
+    description: front.description,
+    url: absoluteUrl(`/docs/${slug}`),
+    inLanguage: 'en',
+    isPartOf: { '@type': 'WebSite', name: SITE.name, url: absoluteUrl('/') },
+    about: { '@type': 'SoftwareApplication', name: SITE.name },
+  };
+
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Docs',
+        item: absoluteUrl('/docs/getting-started/what-is-twinscope'),
+      },
+      ...(group ? [{ '@type': 'ListItem', position: 2, name: group.label }] : []),
+      {
+        '@type': 'ListItem',
+        position: group ? 3 : 2,
+        name: front.title,
+        item: absoluteUrl(`/docs/${slug}`),
+      },
+    ],
+  };
+
   return (
     <div className="ws-wrap">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
       <div className="ws-docs">
         <DocsSidebar current={slug} />
 

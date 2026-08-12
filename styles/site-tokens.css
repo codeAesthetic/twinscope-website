@@ -16,6 +16,38 @@
   --tok-fn: #7ac8ff;
   --tok-num: #ffb86b;
   --tok-com: #7d8796;
+
+  /*
+   * --tx-3, raised to pass WCAG AA.
+   *
+   * The app's value measures 3.71:1 on --panel-2 in dark and 2.61:1 on --bg in
+   * light, and this site uses it for real content: figure captions, table
+   * headers, breadcrumbs, line numbers, the TOC rail. axe flagged 52 nodes on a
+   * single docs page.
+   *
+   * Overridden here rather than in tokens.css so W3's byte-for-byte drift check
+   * against the app still holds. The divergence is deliberate: an app you stare
+   * at from 50 cm can carry dimmer secondary text than a page someone reads once
+   * at arm's length, and only one of the two is audited against AA.
+   *
+   * Dark 5.9:1 on --panel-2 · light 5.1:1 on --panel-2, 4.7:1 on --bg.
+   */
+  --tx-3: #8b94a1;
+
+  /*
+   * The primary button's fill, darkened so white label text passes AA.
+   *
+   * White on the app's --acc measures 3.86:1 in dark. The app can live with that
+   * — its buttons are large and it is not audited — but here it is a 13.5px label
+   * on the most important control on the page. --acc itself is untouched, so
+   * every border, chip and accent keeps the exact brand hue; only the one place
+   * white sits *on top of* the accent changes. 5.5:1.
+   */
+  --acc-fill: #6250e8;
+
+  /* Dark already passes as chip text; light overrides these below. */
+  --add-tx: var(--add);
+  --mod-tx: var(--mod);
 }
 
 html[data-theme='light'] {
@@ -24,4 +56,20 @@ html[data-theme='light'] {
   --tok-fn: #1c5cc4;
   --tok-num: #96500a;
   --tok-com: #656e7c;
+  --tx-3: #616a78;
+
+  /* Light --acc is already 6.1:1 against white, so the fill needs no change. */
+  --acc-fill: var(--acc);
+
+  /*
+   * Status colours, darkened for *text* use in light theme.
+   *
+   * A chip is the colour as text on a 10% tint of itself, and the app's light
+   * values land at 4.2:1 (add) and 4.0:1 (mod) that way — just under AA. Dark
+   * theme already passes at 6.2:1 and 7.8:1 and is left alone. Only the
+   * foreground moves; the tinted backgrounds still come from --add-bg/--mod-bg,
+   * so a chip looks the same colour, just legible. 5.4:1 and 5.1:1.
+   */
+  --add-tx: #146c2e;
+  --mod-tx: #855800;
 }

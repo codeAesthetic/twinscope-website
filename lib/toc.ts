@@ -39,11 +39,21 @@ export async function headingsOf(slug: string): Promise<Heading[]> {
 
   for (const match of body.matchAll(/^(#{2,3})\s+(.+?)\s*$/gm)) {
     const depth = match[1].length === 2 ? 2 : 3;
-    // Strip inline markdown so the rail reads as text, not source.
+    // Strip inline markdown *and JSX* so the rail reads as text, not source.
+    //
+    // The JSX pass is not cosmetic: `## Press <Kbd>⏎</Kbd>` would otherwise slug
+    // to `press-kbdkbd` here while rehype-slug — which sees the parsed tree, not
+    // the raw line — emits `id="press-"`. The rail link then scrolls nowhere and
+    // shows a raw tag. Tags go before the slugger ever sees the text.
     const text = match[2]
+      .replace(/\{'([^']*)'\}/g, '$1') // JSX string expressions: {'⌘\\'} → ⌘\
+      .replace(/\{`([^`]*)`\}/g, '$1')
+      .replace(/<[^>]+>/g, '') // any JSX or HTML tag
       .replace(/`([^`]+)`/g, '$1')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\s+/g, ' ')
       .trim();
     headings.push({ id: slugger.slug(text), text, depth });
   }
