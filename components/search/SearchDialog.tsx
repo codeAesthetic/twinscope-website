@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { FLAT_NAV, groupOf } from '@/content/nav';
 
@@ -54,15 +55,49 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
       .slice(0, 8);
   }, [query]);
 
+  const selected = Math.min(cursor, Math.max(results.length - 1, 0));
+
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  function onKeyDown(event: React.KeyboardEvent) {
-    if (event.key === 'Escape') {
-      onClose();
-      return;
+  /**
+   * Escape lives on the document, not on the text field.
+   *
+   * It used to be an `onKeyDown` on the input, which works only while the input
+   * has focus — and focus left it the moment anyone clicked the page, which (see
+   * the portal note below) did not close the dialog either. The two defects
+   * combined into a dialog with no way out except picking a result.
+   */
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
     }
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  /** The page behind a modal should not scroll. */
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  const go = useCallback(
+    (slug: string) => {
+      router.push(`/docs/${slug}`);
+      onClose();
+    },
+    [router, onClose],
+  );
+
+  function onInputKeyDown(event: React.KeyboardEvent) {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setCursor((c) => (results.length ? (c + 1) % results.length : 0));
@@ -72,19 +107,31 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
       setCursor((c) => (results.length ? (c - 1 + results.length) % results.length : 0));
     }
     if (event.key === 'Enter') {
-      const chosen = results[Math.min(cursor, results.length - 1)];
-      if (chosen) {
-        router.push(`/docs/${chosen.item.slug}`);
-        onClose();
-      }
+      event.preventDefault();
+      const chosen = results[selected];
+      if (chosen) go(chosen.item.slug);
     }
   }
 
-  return (
+  /*
+   * Portalled to <body>, which is the whole fix for click-outside.
+   *
+   * The dialog is rendered by the search button, which lives in the site header —
+   * and the header carries `backdrop-filter: blur(12px)`. A filter or
+   * backdrop-filter makes an element a **containing block for fixed-position
+   * descendants**, so `position: fixed; inset: 0` resolved against the header
+   * rather than the viewport: the scrim measured 1280×86. Nothing below the header
+   * could receive the click meant to dismiss it, and the page was never dimmed.
+   * Moving the node out of that subtree makes `fixed` mean fixed again.
+   */
+  return createPortal(
     <div
       className="ws-scrim"
       role="presentation"
-      onClick={(event) => {
+      onMouseDown={(event) => {
+        // mousedown rather than click: a press that starts on the scrim and ends
+        // on the palette — a drag, or a text selection that overshoots — should
+        // still count as outside, and this fires before focus moves.
         if (event.target === event.currentTarget) onClose();
       }}
     >
@@ -98,11 +145,20 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
               setQuery(event.target.value);
               setCursor(0);
             }}
-            onKeyDown={onKeyDown}
+            onKeyDown={onInputKeyDown}
             placeholder="Search pages…"
             aria-label="Search pages"
           />
-          <kbd className="ws-kbd">Esc</kbd>
+          {/* The Esc hint was a decorative <kbd>. It is the most obvious thing to
+              click when you want out, so it is a real button. */}
+          <button
+            type="button"
+            className="ws-palette-esc"
+            onClick={onClose}
+            aria-label="Close search"
+          >
+            Esc
+          </button>
         </div>
 
         {results.length === 0 ? (
@@ -116,7 +172,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                     a 404 for every reader, invisible in local dev at /. */}
                 <Link
                   href={`/docs/${row.item.slug}`}
-                  data-selected={index === Math.min(cursor, results.length - 1) ? 'true' : 'false'}
+                  data-selected={index === selected ? 'true' : 'false'}
                   onMouseEnter={() => setCursor(index)}
                   onClick={onClose}
                 >
@@ -135,6 +191,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           <span className="ws-spacer">Page titles</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

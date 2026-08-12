@@ -260,3 +260,85 @@ test('the docs sidebar is a disclosure on a phone and always open on a desktop',
   // sidebar is the only route to another page — hence it must be reachable.
   expect(await display(page.locator('.ws-nav'))).toBe('none');
 });
+
+// ── the search palette can always be dismissed ───────────────────────────────
+
+/**
+ * Two defects made the palette a trap, and they reinforced each other.
+ *
+ * The site header carries `backdrop-filter: blur(12px)`, which makes it a
+ * containing block for fixed-position descendants — so the dialog's
+ * `position: fixed; inset: 0` scrim resolved against the 58px header instead of
+ * the viewport and measured 1280×86. Clicking the page could not hit it. Escape
+ * was bound to the text field's `onKeyDown`, so it died the moment that click
+ * moved focus to <body>. The only way out was picking a result.
+ *
+ * These assert the *mechanism*, not just the outcome: a scrim that covers the
+ * viewport, and an Escape that works with focus somewhere else entirely.
+ */
+async function openPalette(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Search docs' });
+  await expect(async () => {
+    await page.getByRole('button', { name: /search docs/i }).click();
+    await expect(dialog).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+  return dialog;
+}
+
+test('the palette scrim covers the whole viewport, not just the header', async ({ page }) => {
+  await page.goto(routePath(SAMPLE_DOC));
+  await openPalette(page);
+
+  const box = await page.locator('.ws-scrim').boundingBox();
+  const viewport = page.viewportSize();
+  expect(box, 'the scrim should be laid out').not.toBeNull();
+  expect(viewport, 'the test needs a viewport').not.toBeNull();
+
+  // The bug produced height 86 against a 720-tall viewport, so an exact-ish
+  // comparison is what catches a regression rather than a generous threshold.
+  expect(Math.round(box!.width)).toBe(viewport!.width);
+  expect(Math.round(box!.height)).toBe(viewport!.height);
+
+  // And the reason it broke: the dialog must not live inside the blurred header.
+  const insideHeader = await page.evaluate(
+    () => document.querySelector('.ws-hd')?.contains(document.querySelector('.ws-scrim')) ?? false,
+  );
+  expect(insideHeader, 'the dialog must be portalled out of the header').toBe(false);
+});
+
+test('Escape closes the palette even when focus has left the input', async ({ page }) => {
+  await page.goto(routePath(SAMPLE_DOC));
+  const dialog = await openPalette(page);
+
+  // Move focus off the field, the way any stray click does.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('BODY');
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+});
+
+test('clicking outside the palette closes it', async ({ page }) => {
+  await page.goto(routePath(SAMPLE_DOC));
+  const dialog = await openPalette(page);
+
+  // Bottom-left of the viewport: comfortably outside the centred palette.
+  const viewport = page.viewportSize()!;
+  await page.mouse.click(24, viewport.height - 24);
+  await expect(dialog).toBeHidden();
+});
+
+test('the palette has a clickable Esc control, and the page cannot scroll behind it', async ({
+  page,
+}) => {
+  await page.goto(routePath(SAMPLE_DOC));
+  const dialog = await openPalette(page);
+
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe('hidden');
+
+  await page.getByRole('button', { name: 'Close search' }).click();
+  await expect(dialog).toBeHidden();
+
+  // Scroll must be given back, or the page is left frozen.
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe('hidden');
+});

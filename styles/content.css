@@ -446,3 +446,21 @@ table.ws-table tr:hover td {
 .ws-palette-ft .ws-spacer {
   margin-left: auto;
 }
+
+/* The Esc affordance is a button, not decoration — it is the obvious thing to
+   click when you want the palette gone. Styled as the key it replaces. */
+.ws-palette-esc {
+  font: 600 10px/1 var(--mono);
+  color: var(--tx-3);
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  padding: 4px 5px;
+  background: var(--panel-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ws-palette-esc:hover {
+  color: var(--tx);
+  border-color: var(--acc);
+}
