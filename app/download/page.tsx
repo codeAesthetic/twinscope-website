@@ -65,22 +65,6 @@ export default function Download() {
             Linux can be built from the same source, but neither has been run on its own platform.
           </p>
 
-          {/*
-            The W9a notice, and the only other place it appears is /changelog.
-            It sits above the cards on purpose: this is the moment someone is
-            about to install, and a sentence here beats a chip on twelve pages.
-          */}
-          <Callout tone="note" title="Three features landed after 0.1.0">
-            <p>
-              Syntax highlighting, <b>⌘F</b> search within a diff, and the three text normalisation
-              toggles are in <code>main</code> but{' '}
-              <strong>not in the {release.version} download</strong>. The docs describe them because
-              they describe the app; to use them today,{' '}
-              <a href="#build-it-yourself">build from source</a>. See{' '}
-              <Link href="/changelog">the changelog</Link> for the full split.
-            </p>
-          </Callout>
-
           <div className="ws-dlgrid">
             {PLATFORMS.map((platform) => (
               <DownloadCard key={platform.id} platform={platform} />
