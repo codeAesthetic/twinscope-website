@@ -87,8 +87,12 @@ export default function Landing() {
             </p>
 
             <div className="ws-hero-cta">
+              {/* Just "Download" — the button goes to /download, which is where the
+                  platform, the architecture and the unsigned-build caveat belong.
+                  Naming one OS on the hero button reads as a claim that the others
+                  are unsupported, and it dates the moment a second build ships. */}
               <Link className="ws-btn" data-variant="primary" data-size="lg" href="/download">
-                Download for macOS <Kbd>.dmg</Kbd>
+                Download
               </Link>
               <Link
                 className="ws-btn"
