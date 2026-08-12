@@ -1,0 +1,7 @@
+out/
+.next/
+node_modules/
+package-lock.json
+public/media/
+plan.md
+website.html

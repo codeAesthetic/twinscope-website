@@ -1,0 +1,27 @@
+/*
+ * Site-only tokens (plan §3).
+ *
+ * Kept OUT of tokens.css so `npm run check:tokens` can byte-compare that file
+ * against the app's copy. Anything the website needs beyond the app's palette
+ * belongs here.
+ *
+ * The code palette exists because the first mock draft used dark-tuned literals
+ * that washed out in light theme, and because comments cannot use --tx-3:
+ * measured at 2.8:1 on --panel-2 in light, which fails AA for what is, on a
+ * docs site, body content. These measure 4.8–6.2:1 light and 5.0–12.1:1 dark.
+ */
+:root {
+  --tok-key: #ff7b9c;
+  --tok-str: #8ee6a8;
+  --tok-fn: #7ac8ff;
+  --tok-num: #ffb86b;
+  --tok-com: #7d8796;
+}
+
+html[data-theme='light'] {
+  --tok-key: #b5195f;
+  --tok-str: #0a6b3d;
+  --tok-fn: #1c5cc4;
+  --tok-num: #96500a;
+  --tok-com: #656e7c;
+}

@@ -1,0 +1,64 @@
+/*
+ * Copied from the app by `npm run sync:tokens` — do not hand-edit (plan W3).
+ * The app's Tailwind `@theme inline` block is stripped: this site has no
+ * Tailwind. Site-only tokens live in site-tokens.css.
+ *
+ * Source: src/renderer/src/styles/tokens.css
+ */
+:root {
+  --bg: #07090c;
+  --bg-2: #0a0d12;
+  --panel: #0e1116;
+  --panel-2: #12161d;
+  --elev: #171d26;
+  --hover: #1b222c;
+  --line: #1e2530;
+  --line-2: #2a3340;
+  --tx: #e7ebf2;
+  --tx-2: #98a2b3;
+  --tx-3: #68727f;
+  --acc: #7c6cff;
+  --acc-2: #a996ff;
+  --acc-bg: rgba(124, 108, 255, 0.14);
+  --add: #3fb950;
+  --add-bg: rgba(63, 185, 80, 0.1);
+  --add-bg-2: rgba(63, 185, 80, 0.22);
+  --del: #f8574f;
+  --del-bg: rgba(248, 87, 79, 0.1);
+  --del-bg-2: rgba(248, 87, 79, 0.22);
+  --mod: #e3b341;
+  --mod-bg: rgba(227, 179, 65, 0.1);
+  --info: #58a6ff;
+  --shadow: 0 30px 90px rgba(0, 0, 0, 0.6), 0 2px 0 rgba(255, 255, 255, 0.03) inset;
+  --r: 10px;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --sans:
+    -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+html[data-theme='light'] {
+  --bg: #eceef2;
+  --bg-2: #e4e7ec;
+  --panel: #ffffff;
+  --panel-2: #f6f7f9;
+  --elev: #ffffff;
+  --hover: #eef0f4;
+  --line: #e0e3e9;
+  --line-2: #cfd4dd;
+  --tx: #151a21;
+  --tx-2: #5b6472;
+  --tx-3: #8b95a3;
+  --acc: #5b4bd6;
+  --acc-2: #4b3cc4;
+  --acc-bg: rgba(91, 75, 214, 0.1);
+  --add: #1a7f37;
+  --add-bg: rgba(26, 127, 55, 0.09);
+  --add-bg-2: rgba(26, 127, 55, 0.18);
+  --del: #cf222e;
+  --del-bg: rgba(207, 34, 46, 0.08);
+  --del-bg-2: rgba(207, 34, 46, 0.16);
+  --mod: #9a6700;
+  --mod-bg: rgba(154, 103, 0, 0.1);
+  --info: #0969da;
+  --shadow: 0 24px 70px rgba(20, 26, 38, 0.22);
+}

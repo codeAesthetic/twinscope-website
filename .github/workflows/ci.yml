@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Same order as `npm run gate`, but as separate steps so a failure names
+      # itself in the job summary instead of hiding inside one long command.
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      # No app checkout here, so this reports "skipping" rather than failing.
+      # Drift is caught locally, where both repos exist.
+      - run: npm run check:tokens
+      - run: npm run build
+      - run: npm run check:external
+      - run: npm run check:media
