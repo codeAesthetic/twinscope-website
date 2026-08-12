@@ -2,7 +2,7 @@
   "name": "twinscope-website",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentation site for TwinScope — static Next.js, deployed to GitHub Pages.",
+  "description": "Documentation site for TwinScope \u2014 static Next.js, deployed to GitHub Pages.",
   "license": "MIT",
   "engines": {
     "node": ">=24"
@@ -11,7 +11,7 @@
     "dev": "next dev",
     "build": "next build",
     "serve": "node scripts/serve.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.e2e.json --noEmit",
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -19,7 +19,10 @@
     "check:media": "node scripts/check-media-budget.mjs",
     "check:external": "node scripts/check-no-external.mjs",
     "gate": "npm run typecheck && npm run lint && npm run format:check && npm run check:tokens && npm run build && npm run check:external && npm run check:media",
-    "sync:tokens": "node scripts/sync-tokens.mjs"
+    "sync:tokens": "node scripts/sync-tokens.mjs",
+    "media:optimise": "node scripts/optimise-stills.mjs",
+    "media:sync": "node scripts/sync-media.mjs",
+    "verify": "playwright test"
   },
   "dependencies": {
     "@mdx-js/react": "3.1.1",
@@ -35,7 +38,9 @@
     "shiki": "4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@mdx-js/loader": "3.1.1",
+    "@playwright/test": "1.62",
     "@types/mdx": "2.0.13",
     "@types/node": "^20",
     "@types/react": "^19",
