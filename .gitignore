@@ -40,10 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Internal planning material — never published (plan W13).
-# Mirrors the app repo's treatment of plan.md + reference/.
+# Internal planning and session material — never published (plan W13).
+# Mirrors the app repo's treatment of plan.md + reference/ + CLAUDE.md.
 /plan.md
 /website.html
+/CLAUDE.md
 
 # Playwright artefacts
 /e2e/.artifacts/

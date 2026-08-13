@@ -18,15 +18,15 @@
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:media": "node scripts/check-media-budget.mjs",
     "check:external": "node scripts/check-no-external.mjs",
-    "gate": "npm run typecheck && npm run lint && npm run format:check && npm run check:tokens && npm run check:docs && npm run build && npm run check:external && npm run check:links && npm run check:media && npm run verify",
+    "gate": "npm run typecheck && npm run lint && npm run format:check && npm run check:tokens && npm run check:claude-sync && npm run check:docs && npm run build && npm run check:external && npm run check:links && npm run check:media && npm run verify",
     "sync:tokens": "node scripts/sync-tokens.mjs",
     "media:optimise": "node scripts/optimise-stills.mjs",
-    "media:sync": "node scripts/sync-media.mjs",
     "verify": "playwright test",
     "check:docs": "node scripts/check-docs.mjs",
     "check:links": "node scripts/check-links.mjs",
     "media:gifs": "node scripts/make-gifs.mjs",
-    "media": "npm run media:gifs && npm run media:optimise && npm run check:media"
+    "media": "npm run media:gifs && npm run media:optimise && npm run check:media",
+    "check:claude-sync": "node scripts/check-claude-sync.mjs"
   },
   "dependencies": {
     "@mdx-js/react": "3.1.1",
