@@ -40,13 +40,13 @@ Available on every screen.
 
 Available while a comparison is open.
 
-| Keys               | Action               | Detail                                 |
-| ------------------ | -------------------- | -------------------------------------- |
-| <Kbd>⌘⇧E</Kbd>     | Export report        | Repeats the last format used           |
-| <Kbd>⌘F</Kbd>      | Search in comparison |                                        |
-| <Kbd>{'⌘\\'}</Kbd> | Cycle view mode      | **Does not fire in 0.1.0** — see below |
-| <Kbd>⌥↓</Kbd>      | Next change          |                                        |
-| <Kbd>⌥↑</Kbd>      | Previous change      |                                        |
+| Keys               | Action               | Detail                                |
+| ------------------ | -------------------- | ------------------------------------- |
+| <Kbd>⌘⇧E</Kbd>     | Export report        | Repeats the last format used          |
+| <Kbd>⌘F</Kbd>      | Search in comparison |                                       |
+| <Kbd>{'⌘\\'}</Kbd> | Cycle view mode      | Text and JSON each remember their own |
+| <Kbd>⌥↓</Kbd>      | Next change          |                                       |
+| <Kbd>⌥↑</Kbd>      | Previous change      |                                       |
 
 <MediaFigure
   id="settings-shortcuts"
@@ -142,16 +142,3 @@ above and do not appear in the Settings grid.
 | <Kbd>⏎</Kbd>               | Command palette  | Open the highlighted entry                                                                                               |
 | <Kbd>⏎</Kbd> <Kbd>⇧⏎</Kbd> | Text diff search | Walk forward and back through the matches                                                                                |
 | <Kbd>Esc</Kbd>             | Text diff search | Clear the search                                                                                                         |
-
-## One binding in this table does not work
-
-<Callout tone="warn" title="⌘\ — Cycle view mode">
-The registry declares it, this page is generated from the registry, and the Settings grid prints it —
-but the keymap never dispatches `view-mode`, and no surface listens for it either. Pressing it does
-nothing in 0.1.0. The toolbar control works.
-
-It is listed rather than hidden because the registry is the app's own claim about itself, and a
-reference page that silently dropped the one binding that is broken would be less useful, not more.
-Every other key in these tables was checked against the code that handles it.
-
-</Callout>

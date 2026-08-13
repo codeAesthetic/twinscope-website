@@ -123,7 +123,7 @@ export default function Landing() {
                   id="R1-json-normalisation"
                   gif
                   priority
-                  alt="Two JSON files compared as a tree, with ignore array order toggled off and on and the counts changing with it"
+                  alt="Two JSON files compared side by side, with ignore array order toggled off and on and the counts changing with it"
                 />
               </div>
             </div>
@@ -169,12 +169,13 @@ export default function Landing() {
                 media={
                   <MediaFigure
                     id="json-tree"
-                    alt="A structural JSON comparison shown as an expandable tree with per-key statuses"
+                    alt="A structural JSON comparison side by side, with per-path statuses and the normalisation rail"
                   />
                 }
               >
-                A structural tree, not a line diff — reformat a file and nothing changes. Arrays
-                match by identity, objects compare as key sets, and type changes get their own row.
+                A structural comparison, not a line diff — reformat a file and nothing changes.
+                Arrays match by identity, objects compare as key sets, type changes get their own
+                row, and five layouts including a tree.
               </EngineCard>
 
               <EngineCard

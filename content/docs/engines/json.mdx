@@ -1,7 +1,7 @@
 ---
 title: JSON
-description: A structural JSON tree rather than a line diff — reformat a file and nothing changes, reorder an array and it is still the same array, with every suppressed difference named.
-lede: A structural tree, not a line diff. Reformat a file and nothing changes; reorder an array and it is still the same array. Everything normalisation hides is counted and one click from coming back.
+description: A structural JSON comparison rather than a line diff — reformat a file and nothing changes, reorder an array and it is still the same array, in five layouts with every suppressed difference named.
+lede: A structural comparison, not a line diff. Reformat a file and nothing changes; reorder an array and it is still the same array. Five layouts, and everything normalisation hides is counted and one click from coming back.
 ---
 
 <MediaFigure
@@ -63,11 +63,11 @@ Every row carries a JSONPath, and container rows carry a badge summarising their
 
 <MediaFigure
   id="json-tree"
-  alt="A JSON comparison as a tree of rows, with container badges and before-to-after values"
+  alt="A JSON comparison side by side, each row addressed by its path, with the mode switcher and the normalisation rail"
   caption={
     <>
-      <b>One row per node.</b> Containers summarise what is below them, so a collapsed tree is still
-      readable.
+      <b>One row per path.</b> The mode switcher is top-left; the normalisation rail and Explain are
+      on the right.
     </>
   }
 />
@@ -121,10 +121,30 @@ When nothing was hidden it says so outright, rather than staying silent and leav
   }
 />
 
-## Reading the tree
+## Five ways to look at it
+
+A JSON comparison is a _structural_ comparison whichever way you lay it out, and there are five layouts. Cycle them with <Kbd>{'⌘\\'}</Kbd>, or pick from the toolbar.
+
+| Mode             | What it shows                                               |
+| ---------------- | ----------------------------------------------------------- |
+| **Side by side** | Two aligned columns of rows addressed by path. The default. |
+| **Unified**      | One column, before above after, like a patch                |
+| **Inline**       | One column with the change marked inside the row            |
+| **Tree**         | Nested containers with twisties — the shape of the document |
+| **Raw**          | The two source documents, untouched                         |
+
+The mode is remembered **per engine** for the session, so the text diff and the JSON diff keep their own choice. That matters more than it sounds: changing a normalisation option re-runs the engine and remounts the view, and a layout that reset itself every time you toggled _ignore nulls_ would read as a bug.
+
+<Callout tone="note" title="Two controls are mode-specific">
+  **Expand all** only appears in **Tree**, because containers are the only thing with anything to
+  expand. And the toolbar box is disabled in **Raw** — there are no rows to filter there, so it says
+  so rather than sitting inert.
+</Callout>
+
+## Reading the rows
 
 - **Only changes** is on by default: unchanged leaves and whole unchanged subtrees disappear. Turn it off to see the document as a whole.
-- **Expand all** opens every container; the twisty on any container row collapses just that one.
+- **Expand all** (Tree only) opens every container; the twisty on any container row collapses just that one.
 - Change navigation stops on every visible row that is not a container and is neither unchanged nor ignored — so what `‹ n/m ›` counts is what the current filters left on screen.
 
 ## Search filters here
