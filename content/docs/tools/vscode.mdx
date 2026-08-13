@@ -54,10 +54,18 @@ code --install-extension twinscope-vscode-0.2.12.vsix`}
 There is no build step: the extension is one CommonJS file with no dependencies. It
 needs VS Code 1.90 or newer.
 
-<Callout tone="note" title="Install the app first, and launch it once">
+<Callout tone="warn" title="Released builds do not own the twinscope:// scheme yet">
   The extension is useless on its own — it does not bundle TwinScope, does not spawn anything, and
-  has no fallback if the app is missing. TwinScope has to be installed, and launched at least once,
-  so that the operating system knows which application owns the `twinscope://` scheme.
+  has no fallback if the app is missing. TwinScope has to be installed for a link to go anywhere.
+
+**And on 0.3.9 and earlier, a link goes nowhere even then.** The packaging config declared no
+URL scheme, so an installed app carried no `CFBundleURLTypes` on macOS and no registry
+association on Windows — and launching it, however many times, does not change that: macOS
+resolves a scheme from the bundle's `Info.plist`, not from what has run. So the extension's
+command builds a correct link that the operating system hands to nobody. Fixed in the
+repository on 13 August 2026; it works from the next release onwards, and until then the
+extension is only useful against a build from source.
+
 </Callout>
 
 ## The link it builds
