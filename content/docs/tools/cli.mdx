@@ -249,8 +249,3 @@ ends with `Try --engine text.`
 - **No `--accept` flag** for visual baselines. A diff tool that can overwrite one of
   its own inputs is one keystroke from destroying the evidence; accepting a new
   baseline is a `cp` or an `rsync` you write yourself.
-- **No PDF comparison.** Detection routes a `.pdf` pair to the PDF engine, and the
-  bundled binary has no PDF worker file beside it — so it fails with
-  `Setting up fake worker failed: Cannot find module 'pdf.worker.mjs'` rather than
-  refusing cleanly the way the visual engine does. Compare PDFs in the app, which
-  does it correctly.
