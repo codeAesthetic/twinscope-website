@@ -5,7 +5,7 @@ export interface EngineCardProps {
   /** Three-or-fewer characters for the file-type badge, e.g. `TXT`. */
   badge: string;
   /** Badge hue. The one place a colour is content rather than chrome. */
-  hue?: 'json' | 'dir' | 'img' | 'muted';
+  hue?: 'json' | 'dir' | 'img' | 'muted' | 'acc';
   title: string;
   /** What the engine does. Prose, not a feature list. */
   children: ReactNode;

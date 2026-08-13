@@ -1,0 +1,162 @@
+---
+title: Environment and config
+description: Two .env files or two Kubernetes manifests as a table of keys, with credentials replaced by a salted fingerprint in the engine — so the mask reaches the report, the clipboard and the command line, not just the screen.
+lede: A table of keys — what changed, what arrived, what left. Credentials are masked before the row model exists, so the mask travels into the export and the clipboard rather than living in the view. Kubernetes objects pair by identity, so reordering a file is not a change.
+---
+
+<MediaFigure
+  priority
+  id="config-masked"
+  alt="A config comparison with several rows whose values are replaced by a fingerprint and a character count, each carrying a masked badge"
+  caption={
+    <>
+      <b>The values were never in the row.</b> Masking happens in the engine, which is why an
+      exported report and a copied row carry it too.
+    </>
+  }
+/>
+
+## Four shapes, one table
+
+`.env` files, Kubernetes manifests and Terraform all reduce to the same thing — `key → value` — so one row model, one masking pass and one view serve all of them. What differs is only how the keys are arrived at.
+
+| Shape              | Recognised by                                             | Keys look like                            |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------- |
+| **`.env`**         | the name: `.env`, `.env.*`, or anything ending `.env`     | `DATABASE_URL`                            |
+| **Kubernetes**     | shape — an `apiVersion:` line and a `kind:` line          | `Deployment/production/api.spec.replicas` |
+| **Terraform plan** | shape — a `"terraform_version"` or `"planned_values"` key | `aws_db_instance.main.engine_version`     |
+| **Terraform vars** | the name: `.tfvars` or `.tfvars.json`                     | `instance_count`                          |
+
+Shape detection reads a **4 KB head**, because the text it is given may be a truncated sniff of a large file rather than the whole thing. Both sides have to be the same shape; an `.env` against a manifest is refused by name, with **Compare as text** offered as a button.
+
+<Callout tone="note" title="Why config is recognised before the extension map">
+  A `.env` file has no extension at all, a Kubernetes manifest is `.yaml`, and a Terraform plan is
+  `.json` — none of which says "this is an environment". So this check runs ahead of the extension
+  table, exactly as the [API](/docs/engines/api) shape check does. Both [YAML](/docs/engines/yaml)
+  and [JSON](/docs/engines/json) remain one pick away in the engine override.
+</Callout>
+
+## Secret masking, and where it happens
+
+<Callout tone="privacy" title="The mask is applied in the engine, before the row model exists">
+  Four things consume those rows: the workspace view, the HTML report, the clipboard and the command
+  line. A mask applied in the view would leak from the other three — and the exported report is the
+  artefact people email. So the value is replaced **before any of them can see it**, and there is no
+  code path that renders a credential by forgetting to mask it.
+</Callout>
+
+Two consequences follow from that, and both are worth stating plainly.
+
+**"Show secrets" re-runs the comparison.** It is not a display toggle, because there is nothing in the view to toggle — the real value is not there to reveal. Turning it on asks the engine for a fresh result with masking off.
+
+**It is never persisted.** The setting applies to one comparison and one comparison only. A remembered "show secrets" is a credential in the next screenshot. While it is on, a banner above the table says so, and says it applies to anything you export or copy in the meantime.
+
+### What counts as a secret
+
+Two kinds of rule, because one is not enough. A key like `AWS_SECRET_ACCESS_KEY` announces itself; `DATABASE_URL` does not, and carries a password inside it.
+
+| Rule             | Fires on                                                                                                                                 | Reported as                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| **by key name**  | `secret`, `token`, `password`, `passwd`, `pwd`, `api_key`, `credential`, `auth`, `private_key`, `access_key`, `dsn`, `salt`, `signature` | the name says secret           |
+| **URL password** | `postgres://user:pw@host/db` — a password in the authority                                                                               | a password inside a URL        |
+| **JWT**          | three base64url runs separated by dots                                                                                                   | a JWT                          |
+| **PEM**          | a `BEGIN … PRIVATE KEY` or `BEGIN … CERTIFICATE` block                                                                                   | a PEM block                    |
+| **entropy**      | 24+ characters, no `/`, mixing at least three character classes                                                                          | a long generated-looking value |
+
+Entropy is checked **last**, deliberately: it is the loosest rule, and a long filesystem path or a base64 logo would otherwise be reported as a credential. Each masked row carries the reason, because a masked value the reader cannot account for looks like a bug in the diff.
+
+### What the mask looks like
+
+<CodeBlock
+  file="a masked row"
+  lang="text"
+  code={`DATABASE_URL   ••••••• k3f9x2a (61 chars)   ••••••• q8m1zzv (65 chars)   changed`}
+/>
+
+The fingerprint is a short digest; the character count is shown because a secret that changed length was regenerated rather than rotated to a same-format one, and the length of a credential is not the credential.
+
+The digest is **not cryptographic and does not claim to be**. It exists so that two equal secrets look equal on screen — which is the property the comparison actually needs. It is **salted per comparison**, so a fingerprint cannot be looked up against a table of common passwords, and truncated so it cannot be brute-forced back into a value.
+
+### Masked values still compare
+
+This is the point of using a stable fingerprint rather than a fixed row of dots. Two secrets that differ are reported as differing — you learn **that** a credential changed without being shown either version of it.
+
+<DiffSample
+  file=".env — 11 changed · 1 added · 1 removed"
+  rows={[
+    { kind: 'del', text: 'STRIPE_SECRET_KEY   ••••••• 4hq2m0p (51 chars)' },
+    { kind: 'add', text: 'STRIPE_SECRET_KEY   ••••••• z71bxc9 (51 chars)' },
+    { kind: 'ctx', text: 'REDIS_URL           redis://cache.staging.internal:6379' },
+  ]}
+/>
+
+Same length, different fingerprint: the key was rotated to another key of the same format, and that is exactly what you needed to know.
+
+### The sample pair
+
+`09-config/env/` compares a staging environment against production: **13 keys, 11 changed, 1 added, 1 removed, 6 masked**. The six are worth reading as a set, because they are found by four different rules — `STRIPE_SECRET_KEY`, `JWT_SIGNING_SECRET`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` by their names, `SENTRY_DSN` by the `dsn` in its name, and `DATABASE_URL` by the password inside its value, which no rule about key names would ever have caught.
+
+`REDIS_URL` sits right beside it and is **not** masked: it has no password in it, and the engine does not mask a URL for being a URL.
+
+## Empty is not the same as missing
+
+`KEY=` next to no `KEY` at all is its own state, because that difference is the one that causes outages. A flat "changed" hides it, so there are six row states rather than four:
+
+| State       | Meaning                                   |
+| ----------- | ----------------------------------------- |
+| **changed** | Both sides present, values differ         |
+| **emptied** | Had a value before, present but empty now |
+| **filled**  | Present but empty before, has a value now |
+| **added**   | Only on the after side                    |
+| **removed** | Only on the before side                   |
+| **same**    | Present on both, equal                    |
+
+Rows sort by state — changed, emptied, filled, added, removed, then unchanged last. Two hundred identical keys above the one that moved is a diff nobody reads to the end.
+
+## Kubernetes pairs by object identity
+
+Two clusters, or two `kustomize build` runs, never emit their objects in the same order. So a document's keys are prefixed with `kind/namespace/name` rather than with its position in the file:
+
+<CodeBlock
+  file="key shape"
+  lang="text"
+  code={`Deployment/production/orders-api.spec.replicas
+Service/production/orders-api.spec.ports[0].port
+ConfigMap/production/orders-flags.data.NEW_CHECKOUT`}
+/>
+
+Comparing document 3 against document 3 would compare a Deployment against a Service and report the whole file as rewritten. Keyed this way, **reordering the documents is not a change** — the sample's AFTER file is deliberately in a different order (`ConfigMap` first, `Deployment` second) and the comparison is unbothered by it. It reports **22 keys, 10 identical, 8 changed and 4 added** — the additions being a `HorizontalPodAutoscaler` that only the after side has.
+
+### Secret values are decoded, then re-masked
+
+A Kubernetes `Secret` holds its values as base64. Two Secrets differing only in padding hold the same secret, and the reader needs to know _that_ rather than that two base64 blobs differ — so `data` and `stringData` values are decoded before comparison, and then masking hides them again. Rows that went through this carry a note, and the result says it happened.
+
+A decoded value containing control bytes is left as base64 instead: that is a TLS key, not a string, and printing its length is more honest than printing a decode of it.
+
+## Ignoring keys
+
+`ignoreKeys` takes globs against the key — `*_AT`, `BUILD_*` — and matching keys leave the comparison entirely rather than being reported as unchanged. Whatever you ignore is listed in the notes, so suppression is never invisible. Set it per project in [project presets](/docs/workflow/projects), or reach it from the command line.
+
+The shared [normalisation rules](/docs/results/normalisation) apply to values too, so a regenerated id inside a value is not a change; suppressions are counted and stated.
+
+<Callout tone="warn" title="Two things this engine deliberately does not do">
+  It does not expand `${OTHER}` in a value — an environment file is being compared, not executed,
+  and resolving a variable against the *reader's* environment would make the diff depend on who
+  opened it. And it does not parse HCL: a `.tf` file describes how an environment is built rather
+  than what it is, so Terraform is read through `terraform show -json`, whose `planned_values` are
+  the environment after apply.
+</Callout>
+
+## In the app
+
+| Control          | What it does                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| **Show**         | Changed · All (with a count) · Secrets (with a count)                                             |
+| **Show secrets** | Re-runs the engine with masking off. Never remembered                                             |
+| **Copy changes** | Every non-identical row to the clipboard — masked, because it copies the rows the engine produced |
+
+## A note on writing escapes
+
+Two literal control characters once reached this engine's source as characters rather than as escape sequences: a placeholder used by an early glob compiler, and a regex class of control bytes. Both are invisible in every editor and in every diff, and only one of the two was caught by a lint rule.
+
+The glob compiler now splits on `*` and escapes the parts, and the control-byte check is a character-code loop rather than a regex. Both are more readable than what they replaced, which is the argument for the rule the codebase now keeps: **write escapes, or write a loop** — never smuggle a character into source as a character.

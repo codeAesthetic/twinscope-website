@@ -1,0 +1,151 @@
+---
+title: Git refs
+description: Compare two refs in one repository, or either one against the working tree — per-file status with git's own line counts, untracked files folded in, blob drill-in, and refs allowlisted because a ref is an argv element.
+lede: Two branches, a tag, a commit id, or the working tree. One row per changed file with git's own counts, and any file pair one double-click away — using the git already on your machine.
+---
+
+<MediaFigure
+  priority
+  id="git-refs"
+  alt="The git panel with a repository chosen, two ref fields offering the working tree, branches, tags and recent commits, and the resulting per-file change list"
+  caption={
+    <>
+      <b>The ref fields are free text with a list.</b> A commit id is a legitimate answer and no
+      list can contain them all.
+    </>
+  }
+/>
+
+## Choosing a repository and two refs
+
+The Git card on the Compare screen opens a folder picker, then resolves the repository **root** — which may be above the folder you picked — and reads its branches, tags and thirty most recent commits.
+
+Both ref fields offer the same list, in this order: the **working tree**, then branches, then tags, then recent commits as `shortSha subject`. They are text inputs with that list attached rather than dropdowns, because a commit id is a legitimate answer and validation happens anyway.
+
+The panel opens on the question most people came with — HEAD against the working tree when the tree is dirty — and says what it found rather than guessing:
+
+| State                            | What the panel does                                         |
+| -------------------------------- | ----------------------------------------------------------- |
+| Not a repository                 | Says so by name. No job starts                              |
+| A repository with no commits yet | Says so. There is nothing to compare                        |
+| Uncommitted changes present      | An **uncommitted changes** chip                             |
+| Detached HEAD                    | A **detached HEAD** chip, and the short SHA as the ref name |
+| Both sides the same ref          | Compare stays disabled, with a line saying why              |
+
+Both refs must come from the **same repository**. A ref in one checkout against a ref in another is a [folder comparison](/docs/engines/folders) wearing a hat, and git cannot answer it in one command anyway.
+
+## What comes back
+
+One row per changed file — not two aligned columns like the folder view. A git diff has one path per change, even a rename, where the old name is a note on the new row rather than a stripe of its own; aligning two columns would mean inventing gaps git never reported.
+
+| Status      | Glyph | Meaning                                            |
+| ----------- | ----- | -------------------------------------------------- |
+| Added       | `＋`  | New at the after side                              |
+| Deleted     | `✕`   | Gone at the after side                             |
+| Modified    | `●`   | Different content                                  |
+| Renamed     | `→`   | With `↳ from old/path (N%)` — git's own score      |
+| Copied      | `⧉`   | Content came from another path that is still there |
+| Type change | `⇄`   | A file became a symlink, or the reverse            |
+| Unmerged    | `!`   | A conflicted path                                  |
+
+Each row carries git's own `＋added －removed` counts, and a binary file is marked **binary** rather than given zeroes — git reports no line counts for one, and pretending otherwise would be inventing them. Rows are sorted by path so the list is stable between runs; git's own order follows its tree walk.
+
+Filters are All, Added, Deleted, Modified and Renamed, and the toolbar box filters by path: `*.ts` behaves like a glob against the basename, anything without a wildcard is a case-insensitive substring of the whole path.
+
+## Two toggles, and both re-run git
+
+- **Detect renames** — git's own detection, at 50% similarity by default. Turning it off means a moved file reads as one addition and one removal, and the notes say so.
+- **Ignore whitespace** — whitespace-only changes stop counting, and some files may then be absent from the list entirely. That is in the notes too.
+
+Neither filters the view. git decides what changed, so the counts have to come back from git.
+
+## Drill in to any blob pair
+
+Double-click a row — or select it and press <Kbd>⏎</Kbd> — to open that one file as its own text comparison. Neither side of a ref-to-ref comparison exists on disk, so this cannot go through the ordinary file read: it fetches the two blobs with `git show` and hands the text straight over.
+
+A blob that does not exist at a ref comes back as nothing, which is exactly what an addition or a deletion looks like, and becomes the empty string — so the whole file reads as added or removed. For a rename, the before side is fetched at its **old** path. A binary row explains why it cannot be opened instead of opening something unreadable.
+
+## `git diff` has no ref name for the working tree
+
+It is expressed by **omitting an argument**: `git diff <ref>` compares that ref against the files on disk. So the working tree is a sentinel here, filtered out of the argv rather than passed as a name.
+
+Which leaves one case with no command shape at all: the working tree as the **before** side. That is done by asking git the other way round and inverting the answer — every `A` becomes a `D` and every `D` an `A`, and the `＋` and `－` counts swap sides. The sample repository shows both readings of the same two things:
+
+| Comparison            | Result                                                               |
+| --------------------- | -------------------------------------------------------------------- |
+| `main` → working tree | 1 added, 1 modified, `＋2 －1` — the added file is the untracked one |
+| working tree → `main` | 1 removed, 1 modified, `＋1 －2` — the same file, now a removal      |
+
+## `git diff` never reports untracked files
+
+By design: they are not in the index, so there is nothing to diff them against. For a tool whose entire question is "what is different", that made a brand-new file silently missing from "what have I changed" — the one case where a wrong answer looks exactly like a right one.
+
+So whenever the working tree is involved, a second command runs: `git ls-files -z --others --exclude-standard`. The `--exclude-standard` is what keeps `node_modules` and every other ignored path out; without it a working-tree comparison in a JavaScript repository returns tens of thousands of additions.
+
+Line counts for those files come from the **filesystem**, because git has no record of them — and the notes say the files were folded in:
+
+> Included 1 untracked file — `git diff` alone does not report them.
+
+<Callout tone="note" title="Rename records are not the shape you expect">
+  A rename in `--name-status -z` is a **three**-field record — `R100`, old path, new path — where
+  every other status is two. In `--numstat -z` it is the path field left *empty*, followed by the
+  two paths as their own fields. Treating either as a fixed pair shifts every later record by one.
+  `-z` throughout is not a nicety either: a path may legally contain a newline.
+</Callout>
+
+## A ref is an argv element, so the risk is argument injection
+
+Refs never reach a shell — `execFile`, no shell, no quoting rules to get wrong. What remains is argument injection, and that is a different problem: `git diff --upload-pack=/bin/sh` is a perfectly valid command line, and `A..B` turns two refs into a range.
+
+So refs are an **allowlist**, not an escape:
+
+| Rule                                   | What it stops                                  |
+| -------------------------------------- | ---------------------------------------------- |
+| Must start with a letter or digit      | Every `-`-prefixed option                      |
+| No `..`                                | Range and merge-base syntax                    |
+| No `:`                                 | A ref becoming a `ref:path` pathspec           |
+| No spaces, globs or control characters | They are simply not in the accepted set        |
+| At most 255 characters                 | A denial-of-service bound as much as a git one |
+
+`HEAD~3`, `v1.2.0`, `refs/heads/feature/x`, `origin/main` and a full SHA all pass. `@{upstream}` does not, deliberately: nothing in the interface offers it, and `{}` would widen the set for one convenience.
+
+The guard is enforced **twice** on the desktop path — once at the process boundary and again inside the engine — which is also what gives the command line the same protection without re-implementing it.
+
+`git show <ref>:<path>` interprets its path argument too, since a pathspec is not a filesystem path. So that argument is refused outright if it is absolute, starts with `-`, contains a NUL, or has a `..` segment, and is prefixed `./` so it cannot be read as anything but a path.
+
+## Process hygiene that is load-bearing
+
+| Setting                 | Why it is there                                                                                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GIT_TERMINAL_PROMPT=0` | A repository with an http remote and no cached credentials otherwise blocks on a username prompt that has no terminal to appear on, and the job hangs until the timeout |
+| `GIT_OPTIONAL_LOCKS=0`  | `git status` and friends refresh the index by default, taking `.git/index.lock`. A comparison is a read; it has no business blocking your own git commands              |
+| `GIT_PAGER=cat`         | Keeps your `core.pager` and `color.ui` out of machine-read output                                                                                                       |
+| A 64 MB output buffer   | `--numstat` over a release-sized range is megabytes of text, and the default truncates it into what looks like a parse bug                                              |
+| A 30-second timeout     | A command that cannot answer fails rather than hanging                                                                                                                  |
+
+<Callout tone="privacy" title="Your git, read-only">
+  TwinScope shells out to the `git` already on your machine. No git implementation is bundled and
+  nothing is downloaded. Eight subcommands are permitted — `diff`, `show`, `rev-parse`, `branch`,
+  `tag`, `log`, `status` and `ls-files` — and every one of them only reads.
+</Callout>
+
+## The sample repository
+
+`15-git/orders-repo/` is opened with the folder picker rather than dropped. It has two branches (`main` and `feature/refunds`), a `v2.4.1` tag, an uncommitted edit to `README.md`, and an untracked `notes.txt` — the file plain `git diff` never mentions.
+
+`main` against `feature/refunds` comes back as **1 added, 2 modified**, `＋21 －5`.
+
+<CodeBlock
+  file="Command line"
+  lang="bash"
+  code={`twinscope --repo 15-git/orders-repo main feature/refunds`}
+/>
+
+## Limits
+
+| Limit                | Value  | What happens past it                                                       |
+| -------------------- | ------ | -------------------------------------------------------------------------- |
+| Changed files        | 20,000 | The change set is reported partially, marked `partial`, and a note says so |
+| One blob, drilled in | 20 MB  | The drill-in refuses that file by name rather than handing over 20 MB      |
+
+The [Diff Radar](/docs/results/radar) scores this engine on **files, not lines**: git reports how many lines changed but never how many a file has, so there is no denominator for a line ratio — and inventing one is exactly what "only ship a score that is honest" rules out. Renames feed the Metadata axis, as they do for folders.

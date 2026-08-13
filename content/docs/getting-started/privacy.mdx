@@ -1,14 +1,15 @@
 ---
 title: Privacy
 description: What TwinScope stores, what it never stores, why the renderer cannot read your disk, and how to verify all of it yourself.
-lede: TwinScope makes no network calls at runtime and never writes file contents to disk. This page says precisely what it does store, where, and how to check that we are telling the truth.
+lede: TwinScope never writes file contents to disk and makes exactly one network call — an update check that is off until you turn it on. This page says precisely what it stores, where, and how to check that we are telling the truth.
 ---
 
 <Callout tone="privacy" title="The short version">
-  No account. No sign-in. No telemetry. No crash reporter — not even an opt-in one. No update check.
-  No analytics, no fonts and no images fetched from anywhere. The app reads two paths off your disk,
-  compares them in a local process, and writes nothing except a small database of *what* you
-  compared and any report you explicitly save.
+  No account. No sign-in. No telemetry. No crash reporter — not even an opt-in one. One network
+  call: an update check, off by default, which asks for a version number and never installs
+  anything. No analytics, no fonts and no images fetched from anywhere. The app reads two paths off
+  your disk, compares them in a local process, and writes nothing except a small database of *what*
+  you compared and any report you explicitly save.
 </Callout>
 
 ## What is stored
@@ -25,11 +26,17 @@ updates its existing row instead of stacking duplicates, so the list stays a lis
 compared rather than of button presses. **Clear history** on the History screen deletes every row,
 starred ones included.
 
-<Callout tone="note" title="About that update-check flag">
-  Settings has a **Check for updates** switch, and it does persist to `settings.json` — but nothing
-  acts on it. TwinScope has no auto-updater and no release server to ask, so no check happens
-  whether the flag is on or off. We would rather document a switch that does nothing than let you
-  find it in the file and wonder what it contacted.
+<Callout tone="privacy" title="The one network call, and how to be sure it is off">
+  Settings has a **Check for updates** switch. It is **off by default** — including on machines that
+  already had a `settings.json`, because it used to default to on while doing nothing at all, and
+  now that it does something it needed asking for first.
+
+Turned on, it asks GitHub once per launch for the latest release _number_ and tells you. It never
+downloads or installs anything: the release page opens in your browser and you decide. Turned off,
+nothing is contacted — and the refusal lives in the same process that would make the request, so
+it does not depend on the window behaving. [Update checks](/docs/history/updates) has the detail,
+including what happens when the check fails.
+
 </Callout>
 
 ## What is never stored

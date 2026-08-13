@@ -11,7 +11,7 @@ import { SITE, absoluteUrl } from '@/lib/site';
 const DESCRIPTION =
   'A local-first desktop app that compares files, folders, JSON and images. Drop two things in, ' +
   'TwinScope detects what they are, picks the right diff engine, and explains what changed. ' +
-  'No account, no telemetry, no network calls at runtime.';
+  'No account, no telemetry, and one network call — an update check that is off by default.';
 
 export const metadata: Metadata = {
   // Absolute, because this one page's title is the brand line rather than
@@ -40,7 +40,7 @@ const SOFTWARE_LD = {
   '@type': 'SoftwareApplication',
   name: SITE.name,
   applicationCategory: 'DeveloperApplication',
-  operatingSystem: 'macOS 13 or later',
+  operatingSystem: 'macOS 13 or later, Windows 10 or later, Linux',
   softwareVersion: SITE.documentsVersion,
   url: absoluteUrl('/'),
   downloadUrl: absoluteUrl('/download'),
@@ -52,12 +52,22 @@ const SOFTWARE_LD = {
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   author: { '@type': 'Person', name: 'codeAesthetic' },
   featureList: [
-    'Text and code diffs with word-level marks',
-    'Structural JSON comparison',
-    'Recursive folder comparison with drill-in',
-    'Image comparison with overlay, blink and difference modes',
-    'Binary verdict from sizes and SHA-256',
-    'HTML, Markdown and patch export',
+    'Sixteen comparison engines chosen by type detection',
+    'Text and code diffs with word-level marks and syntax highlighting',
+    'Structural JSON, YAML and XML comparison',
+    'CSV compared as a grid with key-based row pairing',
+    'Dependency manifests and lockfiles by version, severity and licence',
+    'OpenAPI contracts with a breaking-change verdict, and HAR captures',
+    'Environment and Kubernetes config with secrets masked by the engine',
+    'Saved web pages across structure, style, assets and accessibility',
+    'PDF pages paired by content, not by index',
+    'Recursive folder comparison with rename detection and drill-in',
+    'Git refs, and a ref against the working tree including untracked files',
+    'Image and screenshot-suite comparison with a pixel threshold',
+    'Windowed mode for files too large to load',
+    'The Diff Radar: six axes scoring what changed',
+    'Projects, saved comparisons and option presets',
+    'HTML, Markdown and patch export, plus a twinscope command line',
   ],
 };
 
@@ -74,16 +84,18 @@ export default function Landing() {
 
         <section className="ws-hero">
           <div className="ws-wrap">
-            <Chip tone="acc">Local-first · open source · v{SITE.documentsVersion} for macOS</Chip>
+            <Chip tone="acc">
+              Local-first · open source · v{SITE.documentsVersion} for macOS, Windows and Linux
+            </Chip>
 
             <h1>
               Compare anything. <em>Understand what changed.</em>
             </h1>
 
             <p className="ws-hero-sub">
-              Drop two files, folders, images or clipboard contents. TwinScope detects what they
-              are, picks the right diff engine, and shows you what actually changed — not a wall of
-              red and green.
+              Drop two files, folders, images or clipboard contents. TwinScope picks from sixteen
+              engines by looking at what you gave it, and shows you what actually changed — not a
+              wall of red and green.
             </p>
 
             <div className="ws-hero-cta">
@@ -104,7 +116,7 @@ export default function Landing() {
             </div>
 
             <p className="ws-hero-fine">
-              Free and MIT-licensed · no account · no telemetry · no network calls at runtime
+              Free and MIT-licensed · no account · no telemetry · one network call, off by default
             </p>
 
             <div className="ws-heroshot">
@@ -133,7 +145,7 @@ export default function Landing() {
         <section className="ws-sec">
           <div className="ws-wrap">
             <div className="ws-sec-hd">
-              <span className="ws-eyebrow">Five engines</span>
+              <span className="ws-eyebrow">Sixteen engines</span>
               <h2>The right diff for the thing you dropped</h2>
               <p>
                 Type detection picks the engine. You can always override it — and every engine
@@ -231,17 +243,16 @@ export default function Landing() {
               </EngineCard>
 
               <EngineCard
-                badge="···"
-                hue="muted"
-                title="Not built yet"
-                href={`${SITE.repo}/issues`}
-                linkLabel="Open an issue"
-                external
-                soon
+                badge="+11"
+                hue="acc"
+                title="And eleven more"
+                href="/docs/engines/yaml"
+                linkLabel="All sixteen engines"
               >
-                YAML, XML, CSV and git refs are wanted, not written. There is no roadmap page here
-                on purpose: <strong>everything this site documents, the app does today.</strong>{' '}
-                Ideas and requests live in the repo’s issues.
+                YAML and XML, CSV as a grid, dependency manifests and lockfiles, OpenAPI contracts
+                and HAR captures, <code>.env</code> and Kubernetes config with secrets masked, saved
+                web pages, PDFs, git refs, screenshot suites, and a windowed mode for files too
+                large to load.
               </EngineCard>
             </div>
           </div>
@@ -285,10 +296,12 @@ export default function Landing() {
                 <Chip tone="add">Privacy is the product</Chip>
                 <h2>Your files never leave your machine</h2>
                 <p>
-                  TwinScope makes <strong>no network calls at runtime — none at all.</strong> There
-                  is no account, no telemetry, not even an opt-in crash reporter. This website ships
-                  no analytics and no third-party requests either, which you can verify in your
-                  browser’s network panel.
+                  There is no account, no telemetry, and not even an opt-in crash reporter.
+                  TwinScope makes <strong>exactly one network call</strong>, and it is{' '}
+                  <strong>off by default</strong>: an update check that asks GitHub for the latest
+                  version number and tells you. It never downloads or installs anything. This
+                  website ships no analytics and no third-party requests at all, which you can
+                  verify in your browser’s network panel.
                 </p>
                 <Link className="ws-btn" href="/docs/getting-started/privacy">
                   How to verify it yourself

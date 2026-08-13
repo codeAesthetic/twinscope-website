@@ -1,0 +1,155 @@
+---
+title: Projects and saved comparisons
+description: Save a comparison as a definition rather than an answer, and group saved comparisons into projects that carry option presets and ignore rules.
+lede: A saved comparison stores what to compare, never the result — so opening one compares the files as they are now. A project is optional scope around a set of them, with the options you always want.
+---
+
+Some comparisons you run once. Others you run every week: this schema against that
+schema, this build's assets against last release's. Those are worth keeping — and
+what is worth keeping is the _question_, not the answer.
+
+<MediaFigure
+  priority
+  id="projects-saved"
+  alt="The Projects screen with one active project showing its folder, ignore globs, captured presets and saved comparisons"
+  caption={
+    <>
+      <b>A project is a lens, not a container.</b> Nothing in TwinScope requires one, and deleting
+      one keeps everything saved inside it.
+    </>
+  }
+/>
+
+## Saving a comparison
+
+<Kbd>⌘S</Kbd> on any finished comparison saves it. So does the command palette (<Kbd>⌘K</Kbd> →
+_Save this comparison_) — one registry drives both, so they cannot drift apart.
+
+What is stored is the **definition**: the two inputs, the engine that ran, and the
+options it ran with. Never the file contents, and never the result. That is the
+same rule [history](/docs/history/history) follows, and for the same reason: a
+cached answer to "what changed" is a wrong answer waiting to be read.
+
+So opening a saved comparison re-reads both inputs from disk and re-runs — through
+exactly the same path a history row uses, which is why a file that has since moved
+explains itself the same way in both places.
+
+<Callout tone="note" title="⌘S twice describes one saved comparison">
+  Re-saving the same pair with the same engine, under the same project, updates that entry rather
+  than stacking near-duplicates. The name defaults to <code>before ↔ after</code>, and the entry
+  records when it was last opened as well as when it was saved.
+</Callout>
+
+Saved comparisons appear in three places: the **Saved** tab on the History screen,
+grouped by project; on the Projects screen under the project they belong to; and
+the three most recently saved in the sidebar, so the pair you check constantly is
+one click from anywhere.
+
+## Projects
+
+A project is three things and one flag:
+
+|                  |                                                                   |
+| ---------------- | ----------------------------------------------------------------- |
+| **A name**       | All that is required to create one                                |
+| **A folder**     | Optional scope, chosen with the same picker every other path uses |
+| **Ignore globs** | Patterns to always leave out, e.g. `dist/**`                      |
+| **Presets**      | Per-engine options to start new comparisons with                  |
+
+The only one that changes any behaviour is the **active** project — and only one
+is active at a time. Creating a project makes it active immediately, because the
+one you just made is the one you meant; **Work without a project** clears it.
+
+Nothing requires a project. Every engine, every shortcut and every export works
+exactly the same without one, which is why this screen is not a wizard.
+
+### Presets are captured, not typed
+
+There is no second set of option controls inside a project. Set a comparison up
+the way you want it in the toolbar, then press **Capture from current comparison**
+on the project — the options on screen become that engine's preset.
+
+That is deliberate: every engine's options already have a UI, and authoring them
+again in a form would be a second place for the same controls to drift. Ask for a
+capture with no comparison open and it says so rather than saving an empty preset.
+
+### Two layers, then this pair
+
+When a comparison runs, the options are layered:
+
+1. your **global per-engine defaults** from [Preferences](/docs/history/preferences);
+2. the **active project's preset** for that engine, over the top;
+3. anything you have already changed **for the pair in front of you**, which wins.
+
+Project ignore globs are folded into whichever option that engine spells "ignore
+these" — `ignore` for folders, `ignored paths` for JSON, YAML and XML — and they
+are **added** to the engine's own defaults rather than replacing them. Naming one
+project pattern must not quietly stop skipping `.git` and `node_modules`.
+
+An engine with no such option simply does not receive them.
+
+## The options in the store must be the options that ran
+
+This is the subtle one, and it was a real defect until projects landed.
+
+A run merges the layers above into the request. It must also **write the merged
+set back** into the state the toolbar reads:
+
+<CodeBlock
+  file="src/renderer/src/stores/compare.ts"
+  lang="ts"
+  code={`const merged = { ...defaultsFor(engineId ?? engineFor({ a, b })), ...options };
+// The store has to hold what was actually *requested*, not just the explicit
+// overrides.
+set({ options: merged });`}
+/>
+
+Before that second line, only the explicit overrides were kept. A seeded default —
+a global one, or a project preset — really did run, while the toggle beside it
+still displayed the engine's own default. The summary strip described one
+comparison and the controls described another, and neither was labelled wrong.
+
+It also fixes what gets recorded. Because the store holds the merged set, history
+rows and saved comparisons carry the options that **really ran**, which is what
+makes a saved comparison reproducible rather than approximately reproducible.
+
+<Callout tone="tip" title="Loading a new input clears the pair's options">
+  Options belong to the pair that was loaded — a different pair may not even use the same engine, so
+  its options would be meaningless. The layering runs again from your defaults and the active
+  project.
+</Callout>
+
+## Deleting a project keeps its comparisons
+
+Delete a project and every comparison saved in it moves to **Not in a project**. A
+project is a way of looking at work, not the owner of it, and destroying somebody's
+saved work as a side effect of tidying up their folders is not a trade anyone
+agreed to.
+
+The detach is worth one paragraph of implementation, because it is the kind of
+thing that fails silently:
+
+<Callout tone="warn" title="A pragma a future connection forgets is a data bug">
+  The obvious way to write this is `ON DELETE SET NULL` in the schema. It would never fire.
+  TwinScope's history database is `node:sqlite`, which leaves `PRAGMA foreign_keys` **off** on every
+  connection unless something turns it on — so the constraint would be declared, believed, and
+  inert. Detaching is an explicit `UPDATE` instead. A statement cannot be forgotten by a connection
+  that has not read the schema.
+</Callout>
+
+Deleting a project asks first, in place, rather than opening a dialog. Deleting a
+single saved comparison does not: it is one entry, and re-saving it is <Kbd>⌘S</Kbd>.
+
+## Limits
+
+|                                  |                                                |
+| -------------------------------- | ---------------------------------------------- |
+| Projects listed                  | 200                                            |
+| Saved comparisons listed         | 500                                            |
+| Saved comparisons in the sidebar | 3 — the Projects screen is where the rest live |
+
+## Getting there
+
+<Kbd>⌘3</Kbd> opens Projects, <Kbd>⌘2</Kbd> opens History and its Saved tab. Both are in the
+[command palette](/docs/reference/command-palette) too, and the full map is on the [keyboard
+page](/docs/reference/keyboard).

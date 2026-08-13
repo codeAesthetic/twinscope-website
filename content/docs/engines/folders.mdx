@@ -66,9 +66,22 @@ That ordering is why a ten-thousand-file tree stays fast. The notes for the comp
 
 ## Renames
 
-An unmatched deletion and an unmatched addition of the **same size in the same folder** are almost always one file that moved. Those pair up: both rows keep their status, and each gains a note — `renamed from old-name` on one side, `renamed to new-name` on the other. The count appears in the summary strip.
+An unmatched deletion and an unmatched addition are often one file that moved. They pair up: both rows keep their status, each gains a note — `renamed from old-name` on one side, `renamed to new-name` on the other — and the count appears in the summary strip. Scoring uses three signals, in falling order of certainty:
 
-It is a deliberately conservative rule. Pairing by size within one folder is either right or obviously wrong; similarity scoring that survives an edit is later work, and guessing wrongly about a rename is worse than not guessing.
+1. **Identical content.** A hash match is not a guess.
+2. **The same basename elsewhere.** `src/a.ts` → `src/lib/a.ts` is a move even when the content also changed — so a **cross-directory** rename is found, not just one within a folder.
+3. **Similar content.** Chunk hashes over a sample, plus size proximity, for a file that was renamed _and_ edited.
+
+<Callout tone="note" title="Two floors, both learned the hard way">
+  A file under **64 bytes** is judged on its name alone. At 27 bytes, `export const gone = true;` and
+  `export const added = true;` share most of their sampled chunks and score as a rename — so a tiny
+  file needs a stronger signal than content similarity.
+
+And scoring is |removals| × |additions|, each comparison possibly reading a file. Past a cap of
+**4,000 pairs** it falls back to the older name-and-size rule and **says so in a note**, because a
+reader needs to know why the renames look worse than usual.
+
+</Callout>
 
 ## Filters
 

@@ -1,0 +1,256 @@
+---
+title: The twinscope command line
+description: A single bundled binary that runs every one of TwinScope's engines, prints what changed, and exits 0, 1 or 2 — the same engines and the same report renderers as the desktop app.
+lede: Every engine the app has, from a terminal. The same detection, the same normalisation notes and byte-identical reports — because the command line is not a reimplementation, it is a second host for the same code.
+---
+
+<CodeBlock
+  file="Usage"
+  lang="text"
+  code={`twinscope <before> <after> [options]
+twinscope --repo <path> <ref> <ref> [options]
+
+Either operand may be - to read that side from stdin (one side only).`}
+/>
+
+<MediaFigure
+  priority
+  id="cli-output"
+  alt="A terminal showing twinscope comparing two JSON files: the two names, the engine and timing, the counts, and the normalisation notes underneath"
+  caption={
+    <>
+      <b>The default output is the summary strip, in text.</b> Counts, then what the comparison
+      actually did — the same explainability rule the app follows.
+    </>
+  }
+/>
+
+## Real invocations
+
+Every one of these is a comparison from the sample set, run as written:
+
+<CodeBlock
+  file="Comparing two files, two folders, two refs and two directories of screenshots"
+  lang="bash"
+  code={`twinscope 03-json/before.json 03-json/after.json
+twinscope 14-folder/before 14-folder/after
+twinscope --repo 15-git/orders-repo main feature/refunds
+twinscope 16-visual-regression/baseline 16-visual-regression/current --engine visual
+twinscope 08-api/contract/openapi.before.json 08-api/contract/openapi.after.json --fail-on-breaking`}
+/>
+
+Detection works the same way it does in the app, so the first line gets a
+structural JSON comparison and the second gets a file-tree comparison without
+being told. The two exceptions are on this page: `--engine visual` (below), and
+`--repo`, which changes what the operands _are_.
+
+## Installing it
+
+The CLI is not on npm — publishing is an owner action that has not happened — so it
+is built from source. It takes a few seconds and downloads no browser:
+
+<CodeBlock
+  file="Building the binary"
+  lang="bash"
+  code={`git clone https://github.com/codeAesthetic/twinscope
+cd twinscope
+npm install
+npm run build:cli    # -> out/cli/index.js`}
+/>
+
+The result is one bundled CommonJS file with a shebang and **no `node_modules`
+beside it** — every dependency is inlined, so it runs from anywhere. Invoke it as
+`node out/cli/index.js`, or put it on your `PATH` as `twinscope` (the package
+declares that name for its binary). CI examples on the [continuous
+integration](/docs/tools/ci) page use the explicit `node` form, because a workflow
+should not depend on a link somebody made by hand.
+
+## Options
+
+| Option                      | What it does                                                            |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `--json`                    | A machine-readable result on stdout                                     |
+| `--md`, `--markdown`        | The Markdown report                                                     |
+| `--html`                    | The self-contained HTML report                                          |
+| `--patch`                   | A unified diff (text comparisons only)                                  |
+| `--github`                  | GitHub Actions annotations and a job summary — see [CI](/docs/tools/ci) |
+| `--out <file>`              | Write the output to a file instead of stdout                            |
+| `--engine <id>`             | Force an engine instead of letting detection choose                     |
+| `--repo <path>`             | Treat both operands as git refs in this repository                      |
+| `--ignore-whitespace`, `-w` | Ignore whitespace-only changes                                          |
+| `--ignore-case`, `-i`       | Ignore case                                                             |
+| `--no-color`                | Never emit ANSI colour                                                  |
+| `-q`, `--quiet`             | Print nothing and rely on the exit code                                 |
+| `-h`, `--help`              | The help text                                                           |
+| `-v`, `--version`           | The version                                                             |
+| `--max-changes <n>`         | Fail when more than _n_ things changed                                  |
+| `--max-diff <percent>`      | Fail when the difference exceeds this percentage                        |
+| `--fail-on-breaking`        | Fail when a breaking API change is found                                |
+
+The last three are [CI thresholds](/docs/tools/ci), and they change what the exit
+code means.
+
+Two output formats at once is an error rather than something resolved by argument
+order, and anything beginning with a dash that is not a known option is a typo
+rather than a filename — guessing at either is worse than saying so. A missing
+value is caught too: `--out --json a b` will not write a file called `--json`.
+
+### Exit codes
+
+|     |                                                               |
+| --- | ------------------------------------------------------------- |
+| `0` | The two inputs are the same — or, with a threshold, within it |
+| `1` | They differ — or, with a threshold, they exceed it            |
+| `2` | Something went wrong                                          |
+
+<Callout tone="warn" title="A threshold takes over exit code 1">
+  Without a threshold, `1` means "these two differ" — which is usually true and rarely a build
+  failure. With one, it means "these differ by more than you allowed". Both are useful and they are
+  not the same statement, so a script has to know which one it configured. The [CI
+  page](/docs/tools/ci) is entirely about that distinction.
+</Callout>
+
+### Colour
+
+Colour is on when a human is looking at it and off otherwise: it is disabled when
+stdout is a pipe or a file, when `NO_COLOR` is set to anything, and when you pass
+`--no-color`. So redirecting the summary into a file gives you the text, not escape
+sequences.
+
+## Reading a side from stdin
+
+`-` in either position reads that side from standard input:
+
+<CodeBlock file="One side piped in" lang="bash" code={`cat new.json | twinscope old.json -`} />
+
+Only one side can be `-`, for the obvious reason, and git refs cannot come from
+stdin. The piped side is named `stdin` in the output so the report header reads as
+English, and it still goes through detection — piping JSON in gets you a JSON
+comparison.
+
+## Comparing two git refs
+
+`--repo` makes both operands refs inside one repository:
+
+<CodeBlock
+  file="Two branches, and a branch against the files on disk"
+  lang="bash"
+  code={`twinscope --repo . main HEAD
+twinscope --repo . origin/main WORKTREE`}
+/>
+
+`WORKTREE` is the sentinel for the files as they are on disk — git has no ref name
+for the working tree, so one had to be invented. Refs are validated before they
+reach a command line, because `git diff --upload-pack=/bin/sh` is a valid
+invocation and `A..B` turns two refs into a range; see [the git
+engine](/docs/engines/git) for what that check allows.
+
+## Output formats
+
+| Format            | Goes to            | Notes                                                                                                      |
+| ----------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Summary (default) | stdout             | Names, engine, timing, counts, engine extras, normalisation notes                                          |
+| `--json`          | stdout, or `--out` | The summary, the two sides, the engine, the notes, `identical`, and the threshold verdict when one was set |
+| `--md`            | stdout, or `--out` | The app's Markdown report                                                                                  |
+| `--html`          | stdout, or `--out` | The app's HTML report, self-contained                                                                      |
+| `--patch`         | stdout, or `--out` | Unified diff; a non-text comparison gets Markdown instead                                                  |
+
+`--json` honours `--out` as well, which is exactly what a CI step wants. For a
+report format, `--out` writes the file and confirms it on **stderr** rather than
+stdout — so redirecting stdout somewhere still leaves you a message saying where the
+report went.
+
+<Callout tone="note" title="The reports are the app's reports">
+  `--md` and `--html` call the same renderers the desktop app's [export](/docs/results/export) does,
+  so the same comparison produces the same file. One thing is missing: the app embeds images as
+  `data:` URLs produced by its own view, and the command line does not run a view — so an image
+  comparison's report has the numbers and the region table but not the pictures.
+</Callout>
+
+`--json` deliberately omits each engine's row data. It is a different shape per
+engine and, for a 50,000-row diff, megabytes of it. If you want the rows, you want
+a report.
+
+## Every engine, unchanged
+
+You can name any engine explicitly:
+
+`api` · `binary` · `csv` · `deps` · `env` · `folder` · `git` · `image` · `json` ·
+`pdf` · `text` · `text-large` · `visual` · `web` · `xml` · `yaml`
+
+Forcing one is rarely needed — detection is the same code the app runs — with the
+exception of `visual`, which detection will never pick on purpose.
+
+### Why the visual engine has to be named
+
+Two folders of screenshots and two folders of source code are indistinguishable
+from outside. So a plain `twinscope baseline/ current/` runs the fast folder
+comparison (hashes, renames) and `--engine visual` decodes every pair. One word
+saves decoding a repository by accident. See [visual
+regression](/docs/engines/visual) and the [CI page](/docs/tools/ci) for the
+thresholds.
+
+That engine is also **command-line only**, and it says so if you reach it from the
+app: it needs to list directories _and_ decode images, and neither of the app's
+processes can do both.
+
+## This is a second host, not a second implementation
+
+The reason a command line was a few hundred lines rather than a project is a rule
+the codebase has held since before it existed: **the engines never import
+Electron**. They are given a small set of host interfaces — read a file, decode an
+image, run a git command, read a PDF — and they never learn which host they are
+running in.
+
+So the CLI supplies its own implementations of those interfaces and reuses every
+engine, the detection rules and both report renderers exactly as the app does.
+There is no second copy of a diff algorithm to keep in step.
+
+### A corollary: hosts explain themselves
+
+The CLI decodes **PNG only**. The app decodes whatever the operating system can.
+That difference belongs to the host, not to the engine — and getting it wrong is
+instructive.
+
+The image engine used to hard-code its own failure message: _"PNG, JPEG, WebP, GIF
+and AVIF"_. Correct in the app, and a lie in the terminal, where it advertised four
+formats the command line cannot read. The engine now passes the host's own
+explanation through instead, so the CLI says what it actually supports:
+
+<CodeBlock
+  file="The refusal you get for a JPEG on the command line"
+  lang="text"
+  code={`twinscope: The command line can only decode PNG images. Compare other formats in the app.`}
+/>
+
+Every screenshot tool and visual-regression runner writes PNG, so this costs
+almost nothing — and a clear refusal beats a silent wrong answer.
+
+## Normalisation is printed, not hidden
+
+Whatever the engine did to reach its answer is listed under the counts. "Explain
+what you did" applies to a terminal exactly as it does to the window: an anchored
+large-file comparison, resolved YAML merge keys, suppressed volatile headers,
+untracked files folded into a working-tree diff — all of it prints. See
+[normalisation](/docs/results/normalisation).
+
+When an engine can offer a way out, the terminal offers it as a flag. Unparseable
+JSON in the app renders a **Compare as text** button; on the command line the error
+ends with `Try --engine text.`
+
+## What it does not do
+
+- **No network calls, in either direction.** The CLI never fetches and never phones
+  home. The desktop app's opt-in [update check](/docs/history/updates) is not in
+  this binary.
+- **No progress bar.** There is nothing to keep responsive, so the comparison runs
+  inline; progress output would fight the report on stdout. Cancellation is
+  whatever <Kbd>Ctrl+C</Kbd> already does.
+- **No `--accept` flag** for visual baselines. A diff tool that can overwrite one of
+  its own inputs is one keystroke from destroying the evidence; accepting a new
+  baseline is a `cp` or an `rsync` you write yourself.
+- **No PDF comparison.** Detection routes a `.pdf` pair to the PDF engine, and the
+  bundled binary has no PDF worker file beside it — so it fails with
+  `Setting up fake worker failed: Cannot find module 'pdf.worker.mjs'` rather than
+  refusing cleanly the way the visual engine does. Compare PDFs in the app, which
+  does it correctly.

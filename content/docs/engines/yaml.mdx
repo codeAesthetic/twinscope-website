@@ -1,0 +1,127 @@
+---
+title: YAML
+description: A structural YAML comparison with anchors, aliases and merge keys resolved before comparing, document streams compared in order, YAML against JSON, and every scalar YAML has that JSON does not made printable rather than silently wrong.
+lede: Reindent a file and nothing changes; reorder keys and nothing changes. Anchors and merge keys are resolved first, so what gets compared is the data your tools will actually see.
+---
+
+<MediaFigure
+  priority
+  id="yaml-anchors"
+  alt="A Docker Compose comparison where one edit to an anchored block is reported inside every service that inherits it, with the alias and merge-key notes listed under Explain"
+  caption={
+    <>
+      <b>One edit to an anchor, reported everywhere it lands.</b> The notes say the aliases were
+      expanded, because otherwise the count looks wrong.
+    </>
+  }
+/>
+
+## The same core as JSON, a different parser
+
+A YAML mapping and a JSON object are the same thing once parsed, so this engine is a careful parse in front of the [JSON structural core](/docs/engines/json). Everything that page describes applies here: rows addressed by path, objects compared as key sets, arrays matched by identity, ignored-path globs, the five view modes, the tree, **Copy path**, and the Explain block.
+
+What is specific to YAML is reading it.
+
+## Anchors, aliases and merge keys are resolved first
+
+`&name` declares an anchor, `*name` refers to it, and `<<` merges a mapping into another one. All three are resolved **before** anything is compared, so a file that uses an anchor and a file with the same block written out twice come back identical — because they describe the same data.
+
+<CodeBlock
+  file="before.yml"
+  lang="yaml"
+  code={`x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    options:
+      max-size: 10m
+  environment:
+    LOG_LEVEL: info
+
+services:
+api:
+<<: *defaults
+image: registry.example.com/orders-api:2.4.1
+worker:
+<<: *defaults
+image: registry.example.com/orders-worker:2.4.1`}
+/>
+
+Merge keys are why this matters more than it sounds. `merge: true` is a **parse** option, not something applied afterwards: without it `<<: *defaults` survives into the value as a literal key called `<<`, every inherited field reads as missing, and the tree fills with `<<` rows. That is every Docker Compose file and every GitLab CI file there is.
+
+<Callout tone="note" title="An inherited edit is reported once per place it lands">
+  In the sample pair, three values change inside `&defaults` — `restart`, `max-size` and
+  `LOG_LEVEL`. Because the merge is resolved, the comparison reports **nine** changes for them: once
+  in `x-defaults` itself, and once in each of the two services that inherit it. That is the honest
+  answer — nine real values differ at runtime — but it is surprising enough that the result says the
+  aliases were expanded.
+</Callout>
+
+The notes name what happened, per file:
+
+- _Expanded 2 aliases in before.yml — an anchor and the value written out in full compare as identical._
+- _Applied 2 merge keys (`<<`) in before.yml._
+- _before.yml has non-string mapping keys — they compare by their printed form._
+
+## Document streams
+
+A `---`-separated stream is ordinary YAML, and Kubernetes manifests are usually written that way. Every document is parsed and the stream is compared **document by document, in order**, with a note saying how many there were. Comparing only the first document would be a wrong answer that looks right.
+
+An empty file parses to a single empty document and is treated as such, not as a stream of one.
+
+<Callout tone="tip" title="Kubernetes manifests pair by object identity instead">
+  A stream of Kubernetes objects is detected as [environment and config](/docs/engines/config), not
+  as plain YAML, and that engine pairs documents by their kind and name rather than by position.
+  Order in the file then stops mattering at all.
+</Callout>
+
+## YAML against JSON
+
+YAML is a superset of JSON, so the same parser reads both — and this engine claims a pair where **one side is YAML and the other is JSON**. Comparing a config against its JSON equivalent is a real thing to want, and without this the pair fell through to a line diff of two files that say the same thing.
+
+The strip carries a `formats yaml ↔ json` count when the two sides arrived as different kinds, so the comparison never quietly pretends they were the same.
+
+## YAML's scalars are wider than JSON's
+
+This is the part worth reading before trusting a result. YAML has types JSON does not, and three of the extras break the structural core outright rather than merely reading oddly.
+
+| YAML value                         | What the JSON core would do with it                                                                                                     | What the engine does                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| A tagged timestamp (`!!timestamp`) | Parses to a date object, whose type is `object` — so two _different_ dates compare as two identical empty objects and always look equal | Compared as its ISO string, or as `invalid date` |
+| A set (`!!set`)                    | Renders as `{}`, so every set compares equal to every other set                                                                         | Compared as a list of its members                |
+| `.inf`, `-.inf`, `.nan`            | All three turn into `null`, silently equating `.inf` with `~`                                                                           | Compared as `.inf`, `-.inf` and `.nan`           |
+| `!!binary`                         | An opaque byte array                                                                                                                    | `!!binary (N bytes)`                             |
+| A cycle reached through an alias   | Would not terminate                                                                                                                     | `[circular]`, once the walk has seen it          |
+
+<Callout tone="warn" title="A visible lie beats an invisible wrong answer">
+  Rendering a date as a string is a lie about the type, and the row shows the ISO form rather than
+  what the file said. The alternative is a comparison that reports two different dates as equal,
+  with nothing on screen to suggest it went wrong.
+</Callout>
+
+A plain unquoted date such as `2026-08-13` is not affected: the parser's default schema reads it as the string it looks like, and it compares as a string.
+
+Non-string mapping keys — a sequence or a mapping used as a key — are stringified by the parser and compared by their printed form, with a note saying so. Merge keys are excluded from that check: a merge key genuinely is not a string key, and counting it as one would put a "non-string mapping keys" note on every Compose file that has not earned it.
+
+## When the YAML does not parse
+
+The error names the file, the reason from the parser, and the **line and column** the parser stopped at — then offers **Compare as text** as a button. One click and the same two files come back as a [text diff](/docs/engines/text).
+
+## Normalisation
+
+The [shared normalisation rules](/docs/results/normalisation) apply here exactly as they do to text, JSON, XML and CSV — regenerated ids, build timestamps, content hashes, tolerances and your own patterns — and everything they suppress is counted and named under Explain.
+
+The parse notes come **first** in that list, before the comparison's own notes: what the compared values _are_ has to be read before what the comparison did with them.
+
+## The sample pair
+
+`04-yaml/` is a Docker Compose pair. Both files use one anchor and two merge keys; the after file bumps two image tags, moves the API to port 3000, doubles the replicas, tightens the health check and adds a `metrics` service.
+
+It comes back as **2 added, 17 modified** across 55 nodes — with nine of those seventeen being the three anchored values, counted once in the anchor and once in each service that inherits it.
+
+<CodeBlock
+  file="Command line"
+  lang="bash"
+  code={`twinscope 04-yaml/before.yml 04-yaml/after.yml`}
+/>
+
+The [Diff Radar](/docs/results/radar) plots three axes for a YAML comparison: Structure for what appeared or vanished, Content for what changed in place, and Metadata for type changes. The other three are drawn hollow, because a structural walk has nothing to say about them.

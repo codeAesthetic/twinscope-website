@@ -1,0 +1,116 @@
+---
+title: XML
+description: A structural XML comparison with attributes on their own rows, repeated children handled properly, document order treated as meaning, and values compared as text because XML has no types without a schema.
+lede: Attributes get their own rows, a second repeated child is an addition rather than a change of type, and child order counts — because in XML it is part of the document.
+---
+
+<MediaFigure
+  priority
+  id="xml-attributes"
+  alt="An XML catalogue comparison with attribute rows addressed separately from element text, and a swapped pair of children reported as changes"
+  caption={
+    <>
+      <b>Attributes are rows, not a footnote.</b> Changing one reads as an attribute change rather
+      than as "this element is different".
+    </>
+  }
+/>
+
+## What claims a pair
+
+`.xml`, `.xsd`, `.xsl`, `.xslt`, `.svg`, `.rss`, `.atom` and `.plist`. Before this engine existed these were compared as code — a line diff, which is exactly the comparison a structural engine exists to avoid.
+
+Like [YAML](/docs/engines/yaml), it is a careful parse in front of the [JSON structural core](/docs/engines/json), so every row is addressed by a path and the five view modes, the ignored-path globs, the filter and **Copy path** all work here on the same terms.
+
+## Attributes and text are separate rows
+
+An element's attributes arrive as keys prefixed `@`, and its text content as `#text`. They land beside each other in one object, which is what lets the tree report an attribute change and a text change as two rows rather than one opaque "the element changed".
+
+<CodeBlock
+  file="before.xml"
+  lang="xml"
+  code={`<product sku="TS-100" currency="GBP">
+  <name>Desk lamp</name>
+  <price>34.00</price>
+  <stock warehouse="leeds">18</stock>
+</product>`}
+/>
+
+That parses to `@sku`, `@currency`, and a `name`, `price` and `stock` each holding a `#text` — plus `stock`'s own `@warehouse`. The summary strip carries an **attributes** count alongside the usual three, so the first question a reader has — "did the structure change, or just an attribute?" — is answered before they scroll.
+
+The `<?xml …?>` declaration arrives as a key called `?xml` and is compared like anything else. Comments are **not** compared, and the notes say so when a document contains any.
+
+## Child order is a change here, and is not in a JSON array
+
+This is the one place the XML engine's defaults differ from the JSON engine's. JSON arrays are usually sets in practice — a reordered `roles` list rarely means anything — so the JSON engine matches array items by identity by default. An XML document is the opposite: `<step>` elements in a different order describe a different process.
+
+So **Ignore array order is off** for XML. The same control is in the rail, and turning it on makes child order irrelevant for the comparison you are looking at.
+
+The sample pair swaps two children to show what that costs:
+
+<CodeBlock
+  file="before.xml → after.xml"
+  lang="xml"
+  code={`<!-- before -->            <!-- after -->
+<shipping>                 <shipping>
+  <zone code="UK" days="2"/> <zone code="EU" days="4"/>
+  <zone code="EU" days="5"/> <zone code="UK" days="2"/>
+</shipping>                </shipping>`}
+/>
+
+Compared in order, that is four changed rows: each `zone` in turn has a different `code` and a different `days` from the element now sitting in its position. Turn **Ignore array order** on and the UK zone matches wherever it moved to, leaving the EU zone's changed `days` as the single edit it is.
+
+Both readings are defensible for a shipping table, and neither is defensible for a list of pipeline steps — which is why the default is the strict one and the control is one click away.
+
+## Two parser defaults that had to be forced
+
+Both are the same bug at different depths, and both would have made the engine wrong about the commonest edits anyone makes to XML.
+
+### `isArray` — adding the second repeated child
+
+By default a single `<item>` parses to an object and two parse to an array. So _adding the second child_ would report a **type change** — object became array — rather than one addition. Every element is therefore parsed as a list, whether there is one of it or ten.
+
+<CodeBlock
+  file="Two documents, one addition"
+  lang="xml"
+  code={`<!-- before -->        <!-- after -->
+<product>              <product>
+  <tag>lighting</tag>    <tag>lighting</tag>
+  <tag>office</tag>      <tag>office</tag>
+                         <tag>sale</tag>
+</product>             </product>`}
+/>
+
+### `alwaysCreateTextNode` — adding an attribute to a leaf
+
+The same trap one level down. By default `<id>7</id>` parses to the bare string `"7"` while `<id x="1">7</id>` parses to an object — so _adding an attribute to a leaf_ would report a type change too. With every element an object, only its contents differ.
+
+<Callout tone="note" title="Both are visible in the notes">
+  Every XML comparison carries the sentence _"Every element is compared as a list, so adding a
+  repeated child reads as an addition rather than a type change."_ A decision that changes what the
+  comparison reports is stated rather than assumed.
+</Callout>
+
+## Values are compared as text
+
+`parseTagValue` and `parseAttributeValue` are both off. XML has no types without a schema, and the default coercion reads `<id>007</id>` as the number `7` — which loses information and, worse, equates `<v>1.0</v>` with `<v>1</v>`.
+
+So `007` and `7` are different values here, and the notes say so on every comparison. Whitespace around a value is trimmed, because indentation is presentation in XML and `<a>x</a>` is the same document however it was wrapped.
+
+Namespace prefixes are compared **as written**, not resolved: two documents that mean the same thing through different prefixes will report differences. That is also in the notes when a document uses namespaces.
+
+## When the XML does not parse
+
+Validation is a separate step from parsing, deliberately. The parser is forgiving and will happily return something for a document with mismatched tags; the validator refuses it and reports the **line and column** — which is what makes the error worth reading.
+
+An empty file is refused by name rather than as a parse error. Either way the error offers **Compare as text** as a button, and one click brings the same two files back as a [text diff](/docs/engines/text).
+
+## The sample pair
+
+`05-xml/` is a two-product catalogue. The after file bumps the catalogue version and date, drops a price, moves stock to another warehouse, renames a product, adds a `clearance` attribute and a third `tag`, and swaps the two shipping zones.
+
+It comes back as **2 added, 10 modified** across 58 nodes, with **8 of the changed rows being attributes** — four of them the swapped zones.
+
+<CodeBlock file="Command line" lang="bash" code={`twinscope 05-xml/before.xml 05-xml/after.xml`} />
+
+The [shared normalisation rules](/docs/results/normalisation) apply here as they do to text, JSON, YAML and CSV, and the [Diff Radar](/docs/results/radar) plots Structure, Content and Metadata — the last of those being type changes. The other three axes are drawn hollow rather than at zero.

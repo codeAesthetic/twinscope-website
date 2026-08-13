@@ -69,8 +69,10 @@ engine.
 
 Two switches in the Privacy group are shown off and disabled:
 
-- **Telemetry** — there is none. TwinScope makes no network calls at runtime at
-  all.
+- **Telemetry** — there is none, and no crash reporter either.
+- **Check for updates** — off by default. Turned on, it asks GitHub for the latest version number
+  once per launch and tells you; it never downloads or installs anything. It is the only network
+  call the app makes. See [Update checks](/docs/history/updates).
 - **Store file contents in history** — off. [History](/docs/history/history)
   keeps paths, types, sizes and settings only.
 

@@ -1,0 +1,178 @@
+---
+title: Update checks
+description: TwinScope's only network call — off by default, made from the main process, and one that checks without ever installing. This page says exactly what is sent, what is read back, and what is refused.
+lede: One network call, and only if you ask for it. It asks GitHub for the latest release number, tells you if there is one, and opens the release page in your browser. It never downloads and never installs.
+---
+
+Everything else in TwinScope happens on your machine. There is no account, no
+telemetry, no crash reporter, no fetched font and no analytics — see
+[Privacy](/docs/getting-started/privacy) for the full account.
+
+There is exactly one exception, and this page is about it.
+
+<Callout tone="privacy" title="The short version">
+  **Off by default.** With the switch off, nothing is contacted — not at launch, and not by anything
+  inside the app. Turn it on and TwinScope asks GitHub for the latest release number once per
+  launch. It **checks and never installs**: nothing is downloaded, nothing is replaced, and the only
+  thing that can happen is that a release page opens in your browser. A check that fails says it
+  failed.
+</Callout>
+
+<MediaFigure
+  priority
+  id="update-notice"
+  alt="A toast reading TwinScope 0.4.0 is available, you have 0.3.8, with a Release notes button"
+  caption={
+    <>
+      <b>What "notify" means here.</b> A message and a link to the release page. There is no
+      installer, and no button that would start one.
+    </>
+  }
+/>
+
+## Off means off
+
+The switch is **Check for updates**, in Settings under Privacy, and it starts off.
+
+What makes that a guarantee rather than a preference is _where_ the refusal lives.
+The check is made in the app's main process, and that is the same place that reads
+the preference: with it off, the function returns "off" **without opening a
+socket** — however the call arrived, including from the app's own window.
+
+So the guarantee does not depend on the rest of the app behaving. The disabled
+**Check now** button in Settings is a courtesy to you, not the mechanism.
+
+<Callout tone="note" title="Which is also why the renderer cannot reach the network at all">
+  The window that draws TwinScope's interface runs under a content policy that permits it to connect
+  to nothing but itself. Moving the update check into the window would have meant relaxing that, for
+  every line of code in it, for the sake of one request. It stayed in main precisely so the window's
+  restriction could stay absolute.
+</Callout>
+
+## It defaults to off for everyone
+
+Including machines that already had a settings file.
+
+Earlier versions had a **Check for updates** switch that did nothing at all — it
+persisted, and nothing acted on it. Now that it does something, it needed asking
+for first, so an absent preference reads as **off** rather than as "not explicitly
+disabled".
+
+That is a one-character distinction in the code and it decides the whole question:
+reading the preference as "anything other than false" would have switched the
+network on for every user who had a settings file written before the check existed,
+and who had never been asked. It is read as "exactly true" instead.
+
+## It checks; it never installs
+
+Nothing is downloaded. No installer runs. No file in the application is replaced.
+When there is a newer version, the release page opens in your browser and you
+decide what to do.
+
+That is not caution for its own sake. TwinScope's builds are
+[not code-signed](/docs/getting-started/install), and the machinery that applies an
+update verifies a signature before it does so. An app that cannot verify what it is
+about to install has no business installing it — so the honest options were
+"notify" or "nothing", and notify works on every platform and needs no signature.
+
+## What is sent
+
+One `GET`, and as little as a request can carry:
+
+|                            |                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **When**                   | Once per launch, a few seconds after the window appears, so a cold start never waits on a socket. Plus whenever you press **Check now**.    |
+| **Where**                  | GitHub's API, for this repository's latest release                                                                                          |
+| **Query string**           | None                                                                                                                                        |
+| **Cookies or credentials** | None — explicitly omitted, so nothing about a logged-in session travels with it                                                             |
+| **User agent**             | `TwinScope`, without the version. GitHub requires one; which build asked is not its business.                                               |
+| **Bounds**                 | An 8-second timeout, and a 256 KB cap on the response — a release document is a few kilobytes, and anything approaching that cap is not one |
+
+A second check while one is in flight joins the first rather than opening another
+connection. A pending check does not hold the process open when you quit.
+
+<Callout tone="privacy" title="What cannot be hidden">
+  That an IP address asked at all. There is no way to make a request anonymous to the server
+  receiving it, so the app does not pretend otherwise — the Settings row says in as many words that
+  turning this on means contacting GitHub. That disclosure is the point of the row.
+</Callout>
+
+## What is read back
+
+The response is the second least trusted input the app has, after a
+[`twinscope://` link](/docs/tools/vscode). It is served over TLS by a host nobody
+here controls, and it decides **exactly one thing**: which version string gets
+displayed.
+
+- The body is parsed as JSON, and one field is read: the release tag.
+- It is accepted only if it matches `^v?\d+\.\d+\.\d+$` — three numbers, with an
+  optional leading `v`, and nothing else. Deliberately stricter than semver: this
+  project has never published a prerelease or a build-metadata tag, and a parser
+  that accepts more than it needs is a parser that accepts something unpleasant on
+  a bad day.
+- The draft and prerelease flags are re-checked even though the endpoint already
+  excludes both. This is the one place where trusting the endpoint's contract
+  instead of its payload would announce an unfinished release to every user.
+- **No URL is read from the response.** Not the release page, not an asset, not
+  anything. No markup, no release notes, no filename.
+
+### The release page is a constant
+
+The URL that opens in your browser is written into the app, and the action that
+opens it **takes no argument**. There is no parameter for a server to fill in and no
+parameter for the app's own window to pass — so neither one can choose what your
+browser is pointed at.
+
+## A failed check says it failed
+
+Every failure is reported as a failure. None of them is ever shown as "up to date".
+A failed check reads **Could not check**, then when it was attempted, then the
+reason — and there are three reasons:
+
+| What happened                                | The reason given                       |
+| -------------------------------------------- | -------------------------------------- |
+| The server is down, or answers with an error | the update feed answered 503           |
+| A `200` that names no version                | the update feed did not name a version |
+| The request takes longer than 8 seconds      | the update check timed out             |
+
+The other three states read like this:
+
+|                        |                                                                             |
+| ---------------------- | --------------------------------------------------------------------------- |
+| A newer version exists | 0.4.0 is available. You have 0.3.8.                                         |
+| It is the latest       | Up to date — 0.3.8, checked 4 minutes ago.                                  |
+| The switch is off      | No check has been made. TwinScope makes no network calls while this is off. |
+
+A successful response that names no version is a **broken feed**, not good news.
+Reporting it as "up to date" would leave you believing a check had happened.
+
+## Where you see it
+
+Two places, and they say different things on purpose.
+
+**A toast, at launch, only when there is something to say.** It names both versions
+and offers **Release notes**, which opens the page in your browser. It stays longer
+than an ordinary confirmation — this is news you did not ask for, not an
+acknowledgement of something you just did — and it is dismissible.
+
+**A status row in Settings**, which is the durable copy: what the last check found
+and how long ago, in one sentence. Nothing is lost when the toast fades. When an
+update is available, **Release notes** appears _beside_ **Check now** rather than
+replacing it, because a found update is the moment you most want to re-check, once
+you have read what it contains.
+
+<Callout tone="note" title="A version has to be the app's own version">
+  Worth recording, because it is the kind of bug that produces a confident wrong answer: asking an
+  Electron app for its version returns _Electron's_ version when it is running unpackaged. The check
+  compared releases against that, and the notice cheerfully offered to upgrade the user to a newer
+  Electron. The version is now compiled in at build time, and the test that covers this reads the
+  real number from the project rather than asking the app — a test that asks the app what version it
+  is would have agreed with the bug.
+</Callout>
+
+## Turning it off again
+
+Flip the switch. There is nothing to uninstall, no scheduled task to cancel and no
+cache to clear — the preference is read at the point the request would be made, so
+switching it off stops the next one. The only thing left behind is the last result
+in Settings, and the flag itself in `settings.json`.

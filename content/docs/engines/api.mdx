@@ -1,0 +1,173 @@
+---
+title: API contracts and captures
+description: Two OpenAPI documents become a compatibility verdict with the rule behind every finding; two HAR captures pair by request, suppress volatile headers and surface a status that turned into a failure.
+lede: Two shapes, one engine, and a verdict rather than a tree of keys. An OpenAPI pair answers "will a consumer break". A HAR pair answers "what did the API actually do differently", with the capture's own noise set aside and counted.
+---
+
+<MediaFigure
+  priority
+  id="api-contract"
+  alt="An OpenAPI comparison with a breaking verdict at the top and findings beneath, each naming the rule that produced it"
+  caption={
+    <>
+      <b>The verdict comes first.</b> Breaking findings sort above compatible ones, and each row
+      names the rule that decided it.
+    </>
+  }
+/>
+
+## Recognised by shape, before the extension map
+
+This is the unusual part, and it is deliberate. A HAR and an OpenAPI document are both `.json` — an extension tells you nothing. So detection looks at the **content** before it looks at the name, in the same way a `package.json` is recognised by its [basename](/docs/engines/deps) rather than by `.json`.
+
+The tell has to survive the sniff that produced the text, which reads only the first **8 KB** of a file. A truncated head cannot be parsed, so the test is a substring match rather than a parse:
+
+| Shape       | What is looked for                                | Where      |
+| ----------- | ------------------------------------------------- | ---------- |
+| **HAR**     | a `"log"` key and an `"entries"` key              | first 4 KB |
+| **OpenAPI** | `openapi:` or `swagger:` followed by a `2` or `3` | first 2 KB |
+
+<Callout tone="note" title="Only those two shapes are claimed">
+  A plain JSON response body matches neither test, so two saved bodies stay
+  [JSON](/docs/engines/json) and reach this engine only when you pick it — from the engine override
+  beside the detection bar, or with `--engine api`. Hijacking every JSON pair to ask an API question
+  of it would be worse than missing one, so the engine waits to be asked.
+</Callout>
+
+Both sides have to be the same shape. A HAR against an OpenAPI document is refused by name, with **Compare as JSON** offered as a button rather than left as an idea.
+
+## OpenAPI: a compatibility verdict
+
+A structural diff of two OpenAPI files reports that a `required` array gained an entry. That is true and it is not the question. What a reader wants to know is whether clients sending that request now fail validation — same bytes, different answer.
+
+So the engine reduces each document to what compatibility actually depends on: for every operation, the request shape (body fields _and_ parameters, since a newly required query parameter breaks a caller exactly as a body field does) and the shape of its **first 2xx response**, which is the contract a consumer reads. A changed error body matters less and is reported by the body comparison rather than as a verdict.
+
+### The rules
+
+Every finding carries the rule that produced it, because a verdict nobody can audit is a guess with a badge on it.
+
+| Rule                           | Verdict                                             | Why                                                                  |
+| ------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------- |
+| `operation-removed`            | **breaking**                                        | Every caller of it fails                                             |
+| `response-field-removed`       | **breaking**                                        | Clients reading that field get nothing                               |
+| `type-changed`                 | **breaking**                                        | On either side, with the transition named — `number → string`        |
+| `request-field-now-required`   | **breaking**                                        | Senders that omit it now fail validation                             |
+| `request-field-added-required` | **breaking**                                        | A new required field: every existing sender fails                    |
+| `enum-value-removed`           | **breaking** in a response, compatible in a request | A consumer switching on the value loses a case                       |
+| `operation-added`              | compatible                                          | New operation                                                        |
+| `response-field-added`         | compatible                                          | New field, optional or not                                           |
+| `request-field-removed`        | compatible                                          | No longer accepted; senders that still send it are ignored           |
+| `request-field-optional`       | compatible                                          | No longer required                                                   |
+| `enum-value-added`             | compatible                                          | In a response, noted as something an exhaustive switch falls through |
+
+The rules are deliberately conservative. Where compatibility depends on something the document does not state, the change is reported as notable rather than asserted as safe — and compatible findings are listed too, because "compatible" is not "uninteresting" and a tool that hides additions teaches people to stop looking.
+
+### The sample pair
+
+`08-api/contract/` in the sample set is two versions of an Orders API. Four operations on each side, and the comparison reports **3 breaking against 2 compatible**:
+
+| Finding                                        | Rule                     | Verdict      |
+| ---------------------------------------------- | ------------------------ | ------------ |
+| `DELETE /orders/{id}` is gone                  | `operation-removed`      | **breaking** |
+| `items[].total` went from `number` to `string` | `type-changed`           | **breaking** |
+| `items[].note` is no longer returned           | `response-field-removed` | **breaking** |
+| `POST /orders/{id}/refunds` is new             | `operation-added`        | compatible   |
+| `items[].customerId` is now returned           | `response-field-added`   | compatible   |
+
+<Callout tone="note" title="A `required` array is not read on the response side">
+  That pair also adds `customerId` to the `Order` schema's `required` list. `Order` is only used in
+  a response here, and requiring a field the *server* sends breaks nobody — so it is reported as a
+  new response field rather than as a newly required one. The two `request-field-*-required` rules
+  fire on request shapes only.
+</Callout>
+
+### What it will not do
+
+- **External `$ref`s are not followed.** Following one means reading a file you did not hand to the comparison. Local `#/components/…` refs are resolved, and a cycle — legal in OpenAPI, fatal to a naive walk — terminates instead of recursing.
+- **An unresolvable ref degrades to an unknown type** rather than throwing. Half a contract read is worth more than a parse error.
+- Schemas are flattened to a depth of **12**. Past that, a document is defending itself against being read.
+
+## HAR: pairing a capture against its own noise
+
+Two recordings of the same session never agree on much. Timestamps differ, cookies differ, and the order of concurrent requests is whatever the browser felt like. Most of the work here is therefore **pairing**, so that the comparison describes what changed about the API rather than what changed about the capture.
+
+Entries pair on `METHOD` plus the path, with the query string reduced to its **sorted parameter names**:
+
+<CodeBlock
+  file="pairing"
+  lang="text"
+  code={`GET /v1/orders?limit=20&cursor=abc     ← before
+GET /v1/orders?limit=20&cursor=xyz     ← after
+
+both key on: GET /v1/orders?cursor,limit`}
+/>
+
+Pairing on the raw URL would report every cache-busted request as removed-and-added. A key seen three times before and twice after yields three pairs, the last with no after side — the honest reading, since which of the three calls stopped happening is not knowable from a capture.
+
+### Volatile headers are suppressed and counted
+
+A `date` header differing is not news, and reporting it once per entry buries everything that is. Sixteen header names are ignored by default, and every suppression is **counted** and stated in the notes rather than silently dropped:
+
+<CodeBlock
+  file="default volatile headers"
+  lang="text"
+  code={`date            age              etag             set-cookie
+cookie          content-length   request-id       x-request-id
+x-amzn-requestid  x-correlation-id  traceparent    x-runtime
+server-timing   expires          last-modified    authorization`}
+/>
+
+Header names are lower-cased when the HAR is read, since casing is not meaningful and two captures rarely agree on it.
+
+### Verdicts from a capture
+
+A capture can prove two things break, and only two, so those are the only two it claims:
+
+| Situation                                             | Verdict      |
+| ----------------------------------------------------- | ------------ |
+| An entry present before and gone after                | **breaking** |
+| A status under 400 that became 400 or more            | **breaking** |
+| Any other status change, header change or body change | changed      |
+| No difference left after suppression                  | unchanged    |
+
+Everything else a capture shows is a change, and calling it breaking would be a guess. The contract path is where verdicts are earned.
+
+Response bodies are compared **structurally** when both sides are JSON — the same comparison the [JSON engine](/docs/engines/json) does, normalisation rules and all. When only one side has a JSON body, or neither does but they differ, the row says so instead of pretending to a structural answer. Request bodies are **off** by default; the toolbar toggle turns them on, and the notes say when they were skipped.
+
+### The sample pair
+
+`08-api/capture/` is two recordings of the same two calls. The comparison reports **2 entries, 1 breaking, 8 body changes** and **2 suppressed** header differences:
+
+- `GET /v1/orders` — paired despite the changed `cursor` value. Its body differs, and a new `cache-control` header arrives; the changed `date` and `x-request-id` are the two suppressions.
+- `GET /v1/orders/o_1` — **200 became 404**. That is the breaking one.
+
+## In the app
+
+| Control                       | What it does                                 |
+| ----------------------------- | -------------------------------------------- |
+| **Show**                      | All · Breaking (with a count) · Changed only |
+| **Compare request bodies**    | Capture pairs only. Re-runs the comparison   |
+| **Expand all / Collapse all** | Every entry's headers and body rows at once  |
+| The toolbar box               | Filters entries by their `METHOD path` key   |
+
+Change navigation walks findings for a contract pair and entries for a capture, so <Kbd>⌥↑</Kbd>/<Kbd>⌥↓</Kbd> and the `n/m` badge always agree on what there is to step through.
+
+## Gating a build on it
+
+`--fail-on-breaking` turns a breaking finding into a failed build. It reads the same `breaking` count the verdict is built from:
+
+<CodeBlock
+  file="ci"
+  lang="bash"
+  code={`twinscope api.v1.json api.v2.json --fail-on-breaking
+# FAIL  3 breaking changes
+# exit 1`}
+/>
+
+A threshold **takes over exit code 1**: without one, exit 1 means "these two differ", which is usually true and rarely a build failure; with one it means "these differ by more than you allowed". A comparison that reports no breaking count at all — anything other than an API pair — **fails** `--fail-on-breaking` rather than quietly passing, because a pipeline asking a question the comparison cannot answer is a mistake worth surfacing.
+
+See [Continuous integration](/docs/tools/ci) for the workflow, and [the command line](/docs/tools/cli) for the rest of the flags.
+
+## Nothing is fetched
+
+Both sides are files you chose. No request is made to any host named in a HAR, no `$ref` is followed off disk, and comparing two live URLs is a decision that has not been made — so it is not quietly half-built.

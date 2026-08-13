@@ -1,0 +1,124 @@
+---
+title: Dependencies
+description: Manifest and lockfile comparison for npm, pnpm and yarn — bumps sized by severity, downgrades flagged as rollbacks, transitive counts, licence changes, and detection by filename rather than extension.
+lede: Which packages moved, and how far. Not that a string changed from one range to another — the question you actually asked, with a filter for the three answers worth reviewing.
+---
+
+<MediaFigure
+  priority
+  id="deps-table"
+  alt="A dependency comparison listing packages with their before and after versions, severity badges for each bump, a downgrade marked as a rollback and a licence change beside its package"
+  caption={
+    <>
+      <b>One row per package.</b> Direct dependencies first, transitive ones after, each sized by
+      how far it moved.
+    </>
+  }
+/>
+
+## Detection is by filename, not extension
+
+`package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml` and `yarn.lock` are all `.json` or `.yaml` as far as an extension map is concerned. So the **basename is checked first**, before the extension map gets a look.
+
+Without that, two manifests got a structural JSON tree — which answers the wrong question. It tells you a string changed from `^4.17.20` to `^4.18.0`; what you wanted was "lodash, a minor bump". The engine dropdown still offers JSON for the times you really did want the tree.
+
+## What each kind of pair can tell you
+
+The engine accepts **either** two manifests or two lockfiles, and does what each allows.
+
+| Pair                 | Versions            | Transitive packages | Licences |
+| -------------------- | ------------------- | ------------------- | -------- |
+| Two `package.json`   | declared ranges     | no                  | no       |
+| Two npm lockfiles    | resolved, installed | yes                 | yes      |
+| Two `pnpm-lock.yaml` | resolved, installed | yes                 | no       |
+| Two `yarn.lock`      | resolved, installed | yes, but see below  | no       |
+
+A manifest pair says so outright rather than leaving you to notice:
+
+> These are declared ranges, not installed versions. Compare the two lockfiles to see resolved versions, transitive packages and licences.
+
+<Callout tone="privacy" title="It will not read the lockfile beside a manifest">
+  Reading the lockfile next to a `package.json` would mean widening a comparison's filesystem access
+  from the two files you chose to their whole directories — and a convenience is not worth weakening
+  containment for. Picking the two lockfiles instead is one extra click and stays honest. See
+  [import boundaries](/docs/contributing/boundaries) for where that rule comes from.
+</Callout>
+
+## How far a version moved
+
+Every changed row carries a badge saying how far, and a version that moved **down** is marked as the rollback it is.
+
+| Badge        | Meaning                                                                             |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `major`      | The major number changed                                                            |
+| `minor`      | The minor number changed                                                            |
+| `patch`      | The patch number changed                                                            |
+| `prerelease` | Same numbers, different prerelease tag                                              |
+| `range`      | Identical numbers, different range operator — pinning `^1.2.3` to exactly `1.2.3`   |
+| `changed`    | Not on a scale at all — a git URL, a `file:` path, a `workspace:*`                  |
+| `major ↓`    | Any of the above with the arrow: the after version is **lower** than the before one |
+
+`range` exists because pinning a range is a real and deliberate change, and calling it "no change" would hide the intent. A release outranks any prerelease of the same numbers, so `1.2.3-beta.1` → `1.2.3` is a prerelease move upwards.
+
+<Callout tone="note" title="A rollback is called out twice">
+  A downgrade gets the arrow on its badge and a line in the notes — _"1 package moved to a LOWER
+  version — a rollback, not an upgrade"_ — because a version number going backwards in a diff is
+  easy to read as an upgrade you have not looked at closely.
+</Callout>
+
+## Reading the list
+
+Rows are sorted direct dependencies first, then by kind — dependency, dev, peer, optional — then by name, with transitive packages after all of them. Each row shows the package, its kind, the before and after versions, its bump badge, and a licence pair when the licence changed.
+
+The toolbar has one filter worth knowing about by name:
+
+| Filter                    | Shows                                                       |
+| ------------------------- | ----------------------------------------------------------- |
+| All                       | Everything that changed                                     |
+| Added / Removed / Changed | One status                                                  |
+| **Needs a look**          | Major bumps, downgrades and licence changes — nothing else  |
+| Show unchanged            | A toggle, off by default: packages that did not move at all |
+
+Two more toggles **re-run the engine**, because what counts as a dependency is part of the comparison rather than of the presentation: **Dev dependencies**, and **Transitive** — the second offered only when both sides actually resolved anything. Excluding transitive packages from the list still counts them, and the notes say so.
+
+The toolbar box filters by package name. The notes are rendered in the view itself rather than tucked away, because what a pair _cannot_ show is as important as what it does.
+
+## Three parsing facts the engine is precise about
+
+**npm lockfile paths need the last `node_modules/` segment.** Keys under `packages` are paths, and `node_modules/a/node_modules/b` is package **b** nested under a — everything before the last segment is the nesting that got it there. The root project is the empty key, which is where its _direct_ dependencies live, so a lockfile alone still knows what was asked for. Where a resolved version exists it is preferred over the declared range, because it is what is actually installed.
+
+**pnpm keys on the last `@`.** A key like `@scope/name@1.2.3` has two — and the first one is the scope. The older `@scope/name/1.2.3` shape is read too. pnpm records no licences at all, which is why the notes say a licence change cannot be reported for such a pair rather than reporting none.
+
+**A classic `yarn.lock` cannot separate direct from transitive.** The format simply does not record the distinction, so every resolved package is listed as direct — and the result says exactly that instead of glossing over it:
+
+> A classic yarn.lock does not separate direct from transitive dependencies — every resolved package is listed as direct.
+
+<Callout tone="note" title="A manifest's own licence field is not compared">
+  Licences here are per **package**, read from the `license` field each npm lockfile entry carries.
+  The `license` at the top of a `package.json` describes the project you are comparing, not its
+  dependencies, and is not part of this comparison.
+</Callout>
+
+## The sample pairs
+
+`07-dependencies/` has both shapes, each in `before/` and `after/` subfolders so that both sides can keep their real filename — which is what detection reads.
+
+**The manifest pair** drops `lodash` and `node-fetch`, adds `undici`, and moves express, pino, TypeScript and vitest. It comes back as **1 added, 2 removed, 4 modified**, with **3 major** bumps and 2 packages unchanged, plus the declared-ranges note.
+
+**The lockfile pair** answers more: **1 added, 1 removed, 4 modified**, `packages 5 → 5`, 3 major. It includes `debug`, which nobody declared — it is nested under express in the lockfile, and it moved from 2.6.9 to 4.3.6 when express did.
+
+<CodeBlock
+  file="Command line"
+  lang="bash"
+  code={`twinscope 07-dependencies/manifest/before/package.json \\
+          07-dependencies/manifest/after/package.json
+
+twinscope 07-dependencies/lockfile/before/package-lock.json \\
+07-dependencies/lockfile/after/package-lock.json`}
+/>
+
+## The Radar axis this engine exists to feed
+
+The [Diff Radar](/docs/results/radar)'s **Deps** axis has no data at all without this engine, which is why it was built before the Radar shipped. A dependency comparison scores four or five axes: Deps for the share of the set that moved, Structure for packages appearing and vanishing, Content for versions changing in place, and — only when both sides are lockfiles — Metadata for licence changes and Weight for the change in transitive package count.
+
+For a manifest pair those last two are drawn hollow rather than at zero, because a manifest does not know them. "We could not measure this" and "nothing changed here" are different statements, and the chart says which.

@@ -1,0 +1,288 @@
+---
+title: Continuous integration
+description: Thresholds that fail a build, GitHub Actions annotations and a job summary, and a composite action — with an exact account of what exit code 1 means in each case.
+lede: A diff tool that fails a build on every commit that changes anything is a diff tool somebody switches off. Thresholds are what turn a comparison into a gate, and they change what the exit code means.
+---
+
+`twinscope` is a single bundled file with no runtime dependencies to install, so a
+CI step is one `node` invocation. What makes it a _check_ rather than a log entry is
+a threshold.
+
+## The exit code, and the one thing to know about it
+
+|     | Without a threshold          | With a threshold                         |
+| --- | ---------------------------- | ---------------------------------------- |
+| `0` | the two inputs are identical | they are within the threshold            |
+| `1` | **they differ**              | **they differ by more than you allowed** |
+| `2` | something went wrong         | something went wrong                     |
+
+Both meanings of `1` are useful, and they are not the same statement. "These two
+files differ" is the correct answer for a diff tool and a useless one for a build
+step, which would then fail on every commit that changed anything.
+
+So the CLI only takes over the exit code once you give it a number:
+
+<CodeBlock
+  file="Three gates, three meanings"
+  lang="bash"
+  code={`twinscope api.v1.json api.v2.json --fail-on-breaking     # 1 only if a consumer breaks
+twinscope before.png after.png --max-diff 0.5            # 1 only over half a percent
+twinscope src/ dist/ --max-changes 0                     # 1 if anything differs at all`}
+/>
+
+<Callout tone="warn" title="A workflow has to know which one it configured">
+  `--max-changes 0` and no threshold at all produce the same exit code for the same inputs, and mean
+  completely different things. The first is a deliberate "nothing may change here"; the second is
+  "these are two different files", which was probably the point of the commit.
+</Callout>
+
+## The three thresholds
+
+| Flag                   | Fails when                                    | Reads                                                     |
+| ---------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| `--max-changes <n>`    | added + removed + modified exceeds _n_        | Any comparison                                            |
+| `--max-diff <percent>` | the reported difference percentage exceeds it | Comparisons that report one — images, and screenshot sets |
+| `--fail-on-breaking`   | the comparison found a breaking change        | [OpenAPI contract pairs](/docs/engines/api)               |
+
+Each one prints a line whether it passed or failed, so a red build says which
+number it failed on rather than only that it failed:
+
+<CodeBlock
+  file="The verdict, appended under the counts"
+  lang="text"
+  code={`ok    changes 3 ≤ allowed 10
+FAIL  difference 1.4% > allowed 0.5%`}
+/>
+
+`--max-diff` accepts `0.5` or `0.5%`. A value that is not a number is refused
+before anything runs, with exit `2` — a threshold that silently became `NaN` would
+pass everything, which is the worst possible failure for a flag whose only job is
+to fail a build.
+
+### A threshold that cannot be evaluated fails
+
+This is the subtle rule, and it is deliberate.
+
+Ask a comparison with no percentage in it to fail over 1% different, or ask
+`--fail-on-breaking` of a comparison that never looks for breaking changes, and the
+threshold **fails** rather than quietly passing:
+
+<CodeBlock
+  file="Two unevaluable thresholds"
+  lang="text"
+  code={`FAIL  no difference percentage to compare against --max-diff 1%
+FAIL  this comparison does not report breaking changes, so --fail-on-breaking cannot pass`}
+/>
+
+A silent pass here would hide a broken pipeline forever. The step would be green
+every single time, for months, and the first anyone would learn is when the thing
+it was supposed to be guarding went wrong.
+
+## Annotations and the job summary
+
+`--github` writes GitHub Actions annotations to stdout and a Markdown summary to
+`$GITHUB_STEP_SUMMARY`:
+
+<CodeBlock
+  file="One step, two outputs"
+  lang="bash"
+  code={`twinscope api.v1.json api.v2.json --fail-on-breaking --github`}
+/>
+
+Two outputs, because GitHub reads two places and an integration whose entire output
+is a wall of stdout is one nobody reads.
+
+<MediaFigure
+  priority
+  id="ci-annotations"
+  alt="A GitHub Actions job summary showing the counts, a table of thresholds with ticks and crosses, and a folded section listing what the comparison did"
+  caption={
+    <>
+      <b>The job summary is the part somebody reads.</b> Counts, then every threshold with its
+      verdict, then — folded away — what the comparison actually did.
+    </>
+  }
+/>
+
+**Annotations** are one `::error` per failed threshold, or a single `::notice` with
+the counts when everything passed. They carry no file, on purpose: a comparison is
+about two files, and pinning the annotation to one of them would be a guess.
+
+**The job summary** carries the counts and timing, the engine's own extras, a table
+of every threshold with a ✅ or a ❌, and — folded away in a `<details>` — the list
+of what the comparison actually did. That last part is
+[normalisation](/docs/results/normalisation) reaching CI: a "3 changes" that does
+not mention which rules were applied is a number without a method.
+
+It is **appended** rather than written, so several comparisons in one step stack
+into one summary. Passing `--out` sends the summary there instead of to the
+runner's file.
+
+## A workflow that works
+
+<CodeBlock
+  file=".github/workflows/contract.yml"
+  lang="yaml"
+  code={`name: contract
+on: pull_request
+
+jobs:
+api:
+runs-on: ubuntu-latest
+steps: - uses: actions/checkout@v4
+with: { fetch-depth: 0 }
+
+      # Build the CLI once. \`npm ci\` here is TwinScope's own install, not your project's.
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci && npm run build:cli
+        working-directory: tools/twinscope # wherever you vendored or submoduled it
+
+      # The contract as it is on main, against the contract in this PR.
+      - run: git show origin/\${{ github.base_ref }}:openapi.json > /tmp/openapi.base.json
+
+      - uses: ./tools/twinscope/integrations/github-action
+        with:
+          before: /tmp/openapi.base.json
+          after: openapi.json
+          fail-on-breaking: 'true'
+          report: twinscope-report.html
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: twinscope-report
+          path: twinscope-report.html`}
+
+/>
+
+## The composite action
+
+`integrations/github-action/` is a composite action — `run:` steps you could have
+typed yourself, rather than a Docker image that would have to be published and
+pulled to run a diff.
+
+| Input              | Default            |                                                              |
+| ------------------ | ------------------ | ------------------------------------------------------------ |
+| `before`           | required           | A path, or a git ref when `repo` is set                      |
+| `after`            | required           | The other side                                               |
+| `repo`             | `''`               | Treat both as git refs inside this repository                |
+| `engine`           | `''`               | Force an engine instead of letting detection choose          |
+| `max-changes`      | `''`               | Fail over this many changes                                  |
+| `max-diff`         | `''`               | Fail over this difference percentage                         |
+| `fail-on-breaking` | `'false'`          | Fail on a breaking API change                                |
+| `cli`              | `out/cli/index.js` | Path to the built binary                                     |
+| `report`           | `''`               | Also write an HTML report here, for uploading as an artifact |
+
+It outputs `exit-code`, and it maps the CLI's codes onto the step's own result
+carefully:
+
+- `2` always fails the step. Something went wrong.
+- `1` fails the step **only when a threshold input was given**. Without one, the
+  CLI's `1` means "these differ", which a build step must not treat as an error.
+- everything else passes.
+
+The `cli` input exists because there is no `npx twinscope` to fall back on — the
+package is not published, so the action runs the file `npm run build:cli` produced.
+
+### Comparing two git refs directly
+
+No checkout gymnastics: point it at the repository and name two refs. `WORKTREE` is
+the files as they are on disk.
+
+<CodeBlock
+  file="A size gate on a branch"
+  lang="yaml"
+  code={`- uses: ./tools/twinscope/integrations/github-action
+  with:
+    repo: .
+    before: origin/main
+    after: WORKTREE
+    max-changes: '400'`}
+/>
+
+### A comment on the pull request
+
+Posting a comment is the runner's job, not the app's — TwinScope's CLI makes no
+network calls at all, so nothing in it can reach out on its own. `gh` is already on
+every GitHub runner:
+
+<CodeBlock
+  file="Markdown report as a PR comment"
+  lang="yaml"
+  code={`- name: Comment
+  if: always()
+  env:
+    GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+  run: |
+    node tools/twinscope/out/cli/index.js /tmp/openapi.base.json openapi.json --md > /tmp/twinscope.md
+    gh pr comment \${{ github.event.number }} --body-file /tmp/twinscope.md`}
+/>
+
+## Visual regression
+
+Two directories of screenshots, gated on the worst image in the set:
+
+<CodeBlock
+  file="A screenshot suite as a build gate"
+  lang="bash"
+  code={`twinscope baseline/ current/ --engine visual --max-diff 0.1`}
+/>
+
+Shots pair on their **path relative to the folder you gave**, so
+`baseline/pages/checkout.png` compares against `current/pages/checkout.png` however
+deep the tree goes, and a shot only one side has is reported as added or removed
+rather than as a difference. The list comes back worst-first, which is the order
+you want to read it in.
+
+`--engine visual` has to be named: two folders of screenshots and two folders of
+source look identical from outside, so a plain `twinscope baseline/ current/` runs
+the [folder engine](/docs/engines/folders) instead.
+
+### Neither default is zero
+
+|                        | Default |                                                             |
+| ---------------------- | ------- | ----------------------------------------------------------- |
+| Per-pixel `threshold`  | `0.1`   | How different one pixel must be to count                    |
+| `perImagePercent`      | `0.1`   | What share of an image may differ before it is a regression |
+| `--max-diff <percent>` | —       | The build gate: no image may differ by more than this       |
+
+Zero is the wrong default for a real suite. Font rasterisation, anti-aliasing and
+GPU compositing move a handful of pixels between two runs on the same machine, and
+a suite that goes red on that gets switched off within a week. The defaults are
+forgiving and the gate is yours to tighten.
+
+<Callout tone="note" title="What a headless run needs">
+  The command line decodes **PNG only**, which is what every screenshot runner writes. An unreadable
+  pair is listed with its reason rather than failing the whole run. Images over 2000px on the
+  longest side are compared downscaled, and a run is capped at 2000 screenshots and says how many it
+  left out.
+</Callout>
+
+The action takes the same two inputs:
+
+<CodeBlock
+  file="Visual regression in the action"
+  lang="yaml"
+  code={`- uses: ./tools/twinscope/integrations/github-action
+  with:
+    before: baseline
+    after: shots
+    engine: visual
+    max-diff: '0.1'
+    report: visual-report.html`}
+/>
+
+Accepting a new baseline is a copy you write yourself — there is no `--accept`
+flag, because a comparison tool that can overwrite one of its own inputs is one
+keystroke from destroying the evidence.
+
+## What is deliberately not here
+
+- **No network calls, in either direction.** The CLI does not fetch and does not
+  phone home; anything that leaves the runner is a step you wrote. The desktop
+  app's one network call — the opt-in [update check](/docs/history/updates) — is not
+  in this binary and has no CI meaning.
+- **No live URL comparison.** Comparing two deployed URLs needs a runtime fetch and
+  a headless browser, and neither has been decided on. Two _saved_ pages compare
+  fine today; see the [page engine](/docs/engines/web).

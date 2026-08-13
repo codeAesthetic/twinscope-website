@@ -184,6 +184,9 @@
 .ws-ftype[data-hue='muted'] {
   color: var(--tx-3);
 }
+.ws-ftype[data-hue='acc'] {
+  color: var(--acc-2);
+}
 
 /* ── app window frame, for screenshots that want a chrome around them ── */
 .ws-appframe {

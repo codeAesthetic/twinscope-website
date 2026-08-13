@@ -1,0 +1,114 @@
+---
+title: Quick compare
+description: A global shortcut opens a small always-on-top panel that collects two inputs and hands them to the main window — with a clipboard watcher that offers rather than reads.
+lede: For when the app is not open and the two things to compare are already in hand. A 420-pixel panel over whatever you were doing, which hands the pair to the main window rather than trying to show you a diff in it.
+---
+
+<Kbd>⌘⇧D</Kbd> (<Kbd>Ctrl+Shift+D</Kbd> elsewhere) opens a small panel in the top right of whichever
+display your cursor is on. Drop, paste or browse two things into it, press **Compare**, and the diff
+opens in the main window.
+
+<MediaFigure
+  priority
+  id="quick-compare-panel"
+  alt="The quick compare panel with a Before slot filled, an After slot empty, and Paste, Browse and Compare buttons"
+  caption={
+    <>
+      <b>Two slots and three buttons.</b> The chip under them names the engine detection picked for
+      the pair, before you commit to running it.
+    </>
+  }
+/>
+
+Both halves of this feature are **off by default**, and both are in
+[Settings](/docs/history/preferences) with what they do spelled out. A global
+shortcut takes its combination away from every other application on the machine,
+which is not a thing to switch on for somebody who has not asked.
+
+## It hands off, it does not compare
+
+The panel is 420×320. That is the wrong place to read a diff, and building a
+second copy of the workspace into it would be a second copy to keep in step with
+the first.
+
+So the panel collects two inputs and passes them to the main window, which brings
+itself forward and runs the comparison. The panel hides first, so the handoff reads
+as one movement rather than two windows fighting over focus.
+
+If there is no main window to hand to, it says so — _"The main window is not open,
+so there is nowhere to hand this to."_ — instead of silently doing nothing.
+
+<Callout tone="note" title="It is the same app, not a second one">
+  The panel is the same renderer showing a different route, the way the internal component gallery
+  is. There is no second bundle, no second copy of the engines, and nothing extra loaded while it
+  sits idle.
+</Callout>
+
+It is always on top — including over full-screen apps on macOS — and it hides when
+it loses focus, which is what makes it feel like a panel rather than a window.
+
+## Filling it
+
+Three routes, all of them the ones the main window already uses:
+
+|             |                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------------------ |
+| **Drop**    | Drag a file onto the panel                                                                                   |
+| **Paste**   | Reads the clipboard — text, or an image, which is spilled to a temporary PNG so the image engine can open it |
+| **Browse…** | The system file picker                                                                                       |
+
+Whichever you use, the first fills **Before** and the second fills **After**. Each
+slot has a ✕ to clear it. Once both are filled, the detected engine appears as a
+chip — the same detection the [Compare screen](/docs/comparing/detection) runs, so
+the panel cannot promise one engine and the window run another.
+
+## The clipboard watcher offers; it never fills
+
+Turn the watcher on and the panel notices when the clipboard changes while it is
+open, and shows a chip: _Clipboard changed — 412 characters. Use it?_ Click it and
+the content is read. Ignore it and nothing happens.
+
+That distinction is the whole design. Silently ingesting whatever somebody copies
+is not something a local-first tool should do, opt-in or not — the first thing
+you copy after opening the panel might be a password.
+
+### Why it polls a fingerprint instead of the clipboard
+
+Reading the clipboard properly is expensive and has side effects. For an image it
+**decodes the bitmap and writes a temporary PNG to disk** — because the image
+engine works from a path. Doing that on a timer, several times a second, for
+content nobody has offered, would be indefensible.
+
+So the watcher polls a signature instead: a kind (`text`, `image` or `empty`), a
+size, and a short hint — for text, the first and last two dozen characters; for an
+image, its dimensions. That is enough to notice a _change_ without the content
+being ingested, and the actual read only happens after you click.
+
+<Callout tone="privacy" title="What the watcher costs while it is on">
+  A length-and-fingerprint read roughly once a second, in the main process, while the panel is open.
+  Nothing is written to disk, nothing is stored, and nothing is sent anywhere — TwinScope's only
+  network call is [the update check](/docs/history/updates), and it is unrelated and also off by
+  default. The first poll after the panel opens only establishes a baseline: whatever was already on
+  your clipboard is not something you just did, so it is not offered.
+</Callout>
+
+## When the shortcut is already taken
+
+Registering a global shortcut can fail, and it fails for an entirely ordinary
+reason: another application already owns that combination. It is not an error
+condition, it is Tuesday.
+
+TwinScope treats it as an answer rather than an exception. The registration result
+is recorded and reported as part of the panel's state, and the failure is logged —
+because a silent failure here is a feature that simply does not exist, with nothing
+to explain why. "I turned it on and nothing happens" has to have an answer.
+
+The combination is fixed at <Kbd>⌘⇧D</Kbd> rather than configurable: one binding,
+documented, and one thing that can conflict.
+
+## The same handoff powers deep links
+
+When you accept a [`twinscope://` link](/docs/tools/vscode) — from an exported
+report's **Open in TwinScope** button, or from the VS Code extension — the two
+files arrive in the main window through exactly this path, and the comparison runs.
+One mechanism, so the two features cannot behave differently.

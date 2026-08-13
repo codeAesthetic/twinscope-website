@@ -1,0 +1,119 @@
+---
+title: CSV
+description: A tabular comparison as a real grid with cell-level changes, rows paired on a key column or aligned by position, columns compared too, delimiters sniffed outside quoted fields, and TSV by name.
+lede: A grid, not a tree and not a line diff. Which record changed, and which cell in it — with rows paired on a key column so the order two exports came out in stops mattering.
+---
+
+<MediaFigure
+  priority
+  id="csv-grid"
+  alt="A CSV comparison as a grid with a sticky header, a row-number gutter showing before and after record numbers, and changed cells showing the old value beside the new one"
+  caption={
+    <>
+      <b>One scroll container.</b> The header is sticky inside it and the row-number gutter is
+      sticky sideways, so "row 412" stays visible while you scroll across.
+    </>
+  }
+/>
+
+## A grid, because that is the question
+
+The reader's question about two CSVs is _which cell changed_, and neither a structural tree nor a line diff can answer it. So this engine has its own row model and its own view: a sticky header, a row-number gutter, and a changed cell showing the old value beside the new one.
+
+| Row status | Glyph | Meaning                                   |
+| ---------- | ----- | ----------------------------------------- |
+| Added      | `＋`  | Present only on the after side            |
+| Removed    | `✕`   | Present only on the before side           |
+| Changed    | `●`   | Paired with a row that differs in a cell  |
+| Identical  | `·`   | Paired with a row that matches everywhere |
+
+The gutter shows both record numbers — `12 → 9` for a row that moved — because "row 412 of the export" is how anyone talks about a CSV. Cell states are their own thing: a cell is unchanged, changed, added, removed, or **ignored** — the last of those when a [normalisation rule](/docs/results/normalisation) matched it, or when its column is excluded from the comparison. Either way its difference is still counted as suppressed rather than quietly dropped.
+
+Columns are compared as well as rows. The union of both headers is kept in the before file's order, with columns only the after file has appended, and a header cell is marked when only one side has it. Reading a table in a different column order is unreadable even when every value is present, which is why the order is not normalised away.
+
+## Pairing rows on a key column
+
+Two exports of the same table usually differ in row order for no reason at all — whatever the database felt like that afternoon. Pick a key column from the toolbar and order stops mattering: rows pair on that value, so an edited row is an edited row and a moved row is not a change at all.
+
+<Callout tone="note" title="The key column re-runs the engine">
+  Pairing is a property of the comparison, not of the presentation, so choosing a key re-runs it and
+  the counts come back from the engine. A duplicate key is disambiguated by occurrence — two rows
+  with the same id pair first with first — and the number of duplicates is named in the notes.
+  Naming a column that does not exist falls back to position pairing, and says so.
+</Callout>
+
+## Pairing rows by position
+
+Without a key, rows are **aligned first** and then paired. Each row becomes a signature; the two lists of signatures are aligned; and where a block of removals is followed by a block of additions, the two blocks are zipped and each zipped pair kept as one modification when the rows resemble each other — at least half their comparable cells the same.
+
+Without the alignment step, inserting one row at the top would report every row below it as modified. Without the zipping, every edit would be a removal plus an addition.
+
+### Two things that make position pairing work
+
+**Similarity needs enough columns to judge by.** A one-column table can never clear any threshold — a changed cell means zero cells match — so a narrow table would report every edit as a deletion plus an addition. Below **three** comparable columns the engine trusts the alignment instead and keeps the pair. Text lines are the opposite case, which is why the [text diff](/docs/engines/text) needs no such exception.
+
+**Row signatures are masked too, not just cell comparisons.** When a [normalisation rule](/docs/results/normalisation) is on — a regenerated id, a build timestamp — the mask is applied to the signature as well. Otherwise two rows differing only in a regenerated id fail to align, and every row below them reads as changed while the rule that should have hidden the difference sits there switched on.
+
+<Callout tone="tip" title="Why a signature is joined with a control character">
+  Fields are joined with a unit separator rather than a comma. With a printable delimiter, a row
+  holding the single value `a,b` and a row holding `a` and `b` would share a signature — two
+  different rows aligning as one.
+</Callout>
+
+## Delimiters, and TSV
+
+The delimiter is sniffed by counting candidates — comma, tab, semicolon, pipe — **outside** quoted fields, across the first 64 KB. Counting raw occurrences would pick the comma for a semicolon-delimited file whose fields contain commas, which is most European exports.
+
+A `.tsv` is tab-delimited **by its name**, settled before the sniffer gets a chance: the extension says so definitively and the content may contain either character.
+
+The parser is ours and follows RFC 4180 in one pass over the characters, which covers the three cases that catch every hand-rolled implementation:
+
+<CodeBlock
+  file="Three cases that are not lines"
+  lang="text"
+  code={`a,"b,c",d          → three fields: a | b,c | d
+"one
+two",three        → two fields; a record is not a line
+"say ""hi"""      → one field: say "hi"`}
+/>
+
+CRLF and a lone CR both end a record, a trailing newline does not start an empty one, and rows whose field count differs from the first row's are counted and named in the notes rather than silently padded.
+
+## Controls in the toolbar
+
+| Control                   | Default          | What it does                                                          |
+| ------------------------- | ---------------- | --------------------------------------------------------------------- |
+| **First row is a header** | on               | Off names the columns `Column 1…n` and compares the first row as data |
+| **Pair rows on column**   | pair by position | The key column. Row order stops mattering                             |
+| **Ignore case**           | off              | Cell comparison ignores case                                          |
+
+All three **re-run the engine** rather than filtering the view, so the counts in the summary strip always describe the grid on screen.
+
+Leading and trailing spaces inside a cell are ignored by default, which is what makes two exports from different tools comparable at all. A column excluded from the comparison keeps its place in the grid — the header is marked, its cells are marked ignored, and any difference it hides is still counted as suppressed rather than dropped.
+
+Whatever ran is named in the notes — _"Read as comma-delimited with a header row"_, _"Rows paired on `order_id`, so row order is ignored"_, _"Leading and trailing spaces in cells were ignored"_ — and those notes travel into any [exported report](/docs/results/export).
+
+## Filtering and finding
+
+The toolbar has a status filter — All, Added, Removed, Changed, Identical — and the toolbar box is a **filter** here, as it is for JSON and folders: rows that do not match disappear. It matches the **values**, including the old value of a changed cell, so a record stays findable by the text it used to have. When nothing survives, the pane says _"No rows match this filter"_ rather than going blank.
+
+Change navigation walks the rows that are not identical, in the filtered order, so `‹ n/m ›` counts what is actually on screen.
+
+## The sample pair
+
+`06-csv/` is a six-row order export. Four rows are edited — two of them in two cells, one in three and one in four — while one row is inserted, one removed, and one only moved.
+
+Compared with the default position pairing it comes back as **2 added, 2 removed, 3 modified** with 1 identical row and 7 changed cells — and that is the honest reading of two files whose rows are in different places: the last edited row could not be zipped with anything similar enough, so it reads as a removal plus an addition.
+
+Pick **Pair on `order_id`** and the same two files read the way you meant them: every edited row becomes an edited row, and the row that only moved stops counting at all.
+
+<CodeBlock file="Command line" lang="bash" code={`twinscope 06-csv/before.csv 06-csv/after.csv`} />
+
+## Limits
+
+| Limit           | Value   | What happens past it                                                    |
+| --------------- | ------- | ----------------------------------------------------------------------- |
+| Rows per file   | 200,000 | The parse stops, the strip is marked a partial scan, and a note says so |
+| Columns per row | 1,000   | Extra columns are dropped                                               |
+
+The strip also carries this engine's own vocabulary beside the three counts: the before and after row totals, identical rows, changed cells, and columns added or removed. The [Diff Radar](/docs/results/radar) scores changed **cells** against the cell count rather than rows against rows, so a one-cell edit in a wide table does not read as a whole changed row.

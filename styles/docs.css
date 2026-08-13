@@ -299,11 +299,16 @@
  * Scoped to prose so navigation, the sidebar and the TOC — where position and
  * grouping already identify a link — stay clean.
  */
+/* `.ws-rel` is the changelog. Its entries only gained links when the 0.2.x and
+   0.3.x releases arrived, and axe caught them immediately — the same rule, on a
+   surface the original selector list did not know existed. */
 .ws-prose p a,
 .ws-prose li a,
 .ws-prose td a,
 .ws-prose blockquote a,
-.ws-callout a {
+.ws-callout a,
+.ws-rel p a,
+.ws-rel li a {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -314,6 +319,8 @@
 .ws-prose li a:hover,
 .ws-prose td a:hover,
 .ws-prose blockquote a:hover,
-.ws-callout a:hover {
+.ws-callout a:hover,
+.ws-rel p a:hover,
+.ws-rel li a:hover {
   text-decoration-color: var(--acc-2);
 }

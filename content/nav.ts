@@ -47,9 +47,20 @@ export const NAV: readonly NavGroup[] = [
     label: 'Engines',
     items: [
       { slug: 'engines/text', title: 'Text and code' },
+      { slug: 'engines/large-text', title: 'Large text files', short: 'Large text' },
       { slug: 'engines/json', title: 'JSON' },
+      { slug: 'engines/yaml', title: 'YAML' },
+      { slug: 'engines/xml', title: 'XML' },
+      { slug: 'engines/csv', title: 'CSV' },
+      { slug: 'engines/deps', title: 'Dependencies' },
+      { slug: 'engines/api', title: 'API contracts and captures', short: 'API' },
+      { slug: 'engines/config', title: 'Environment and config', short: 'Config' },
+      { slug: 'engines/web', title: 'Saved web pages', short: 'Web pages' },
+      { slug: 'engines/pdf', title: 'PDF' },
       { slug: 'engines/folders', title: 'Folders' },
+      { slug: 'engines/git', title: 'Git refs' },
       { slug: 'engines/images', title: 'Images' },
+      { slug: 'engines/visual', title: 'Visual regression', short: 'Visual' },
       { slug: 'engines/binary', title: 'Binary files', short: 'Binary' },
     ],
   },
@@ -59,7 +70,23 @@ export const NAV: readonly NavGroup[] = [
       { slug: 'results/change-navigation', title: 'Change navigation' },
       { slug: 'results/search-and-filter', title: 'Search and filter' },
       { slug: 'results/normalisation', title: 'Normalisation' },
+      { slug: 'results/radar', title: 'The Diff Radar', short: 'Diff Radar' },
       { slug: 'results/export', title: 'Export' },
+    ],
+  },
+  {
+    label: 'Working faster',
+    items: [
+      { slug: 'workflow/projects', title: 'Projects and saved comparisons', short: 'Projects' },
+      { slug: 'workflow/quick-compare', title: 'Quick compare', short: 'Quick compare' },
+    ],
+  },
+  {
+    label: 'Beyond the app',
+    items: [
+      { slug: 'tools/cli', title: 'The twinscope command line', short: 'Command line' },
+      { slug: 'tools/ci', title: 'Continuous integration', short: 'CI' },
+      { slug: 'tools/vscode', title: 'VS Code extension', short: 'VS Code' },
     ],
   },
   {
@@ -67,6 +94,7 @@ export const NAV: readonly NavGroup[] = [
     items: [
       { slug: 'history/history', title: 'History' },
       { slug: 'history/preferences', title: 'Preferences' },
+      { slug: 'history/updates', title: 'Update checks' },
     ],
   },
   {

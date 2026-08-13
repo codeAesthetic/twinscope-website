@@ -1,0 +1,195 @@
+---
+title: Saved web pages
+description: Two saved HTML pages compared as pages rather than as text, in four sections — structure, style, assets and accessibility — with retagged elements folded into one row and cache-busted bundles paired by shape.
+lede: Two saved pages, in four sections — structure, style, assets and accessibility. A page differs in four unrelated ways, and one flat list of them all is what makes an HTML diff unreadable.
+---
+
+<MediaFigure
+  priority
+  id="web-sections"
+  alt="A page comparison with the four section tabs across the toolbar and structural rows beneath, each addressed by a structural key"
+  caption={
+    <>
+      <b>Four sections, four questions.</b> Each tab carries its own count, so you can see where the
+      differences are before opening any of them.
+    </>
+  }
+/>
+
+## Four sections
+
+A page can differ in its markup, its styling, what it loads and what a screen reader would make of it. Those are four different questions, and rolling them into one row list is what makes an HTML diff useless. The toolbar switches between them and each tab carries its own count.
+
+| Section           | What it compares                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| **Structure**     | Elements keyed by their position in the tree, with their attributes and their own text |
+| **Style**         | Inline `<style>` rules, per selector and per declaration                               |
+| **Assets**        | Everything the page pulls in — listed, never fetched                                   |
+| **Accessibility** | Heading outline, missing `alt`, unlabelled controls, document language                 |
+
+## Real pages are not XML
+
+The parser is forgiving on purpose. Real pages have unclosed list items, minimised attributes and stray text between tags, and an XML-strict parser refuses most of the web — which is why this engine does not reuse the [XML engine](/docs/engines/xml)'s reader.
+
+`<script>`, `<style>`, `<template>`, `<noscript>` and `<pre>` are read as **text rather than walked as a tree**: a stylesheet and a script are compared as their own things, not as DOM subtrees. A removed `<script>` is still recorded as a change; its contents just are not diffed as markup.
+
+## The interesting part: a key that contains the tag cannot pair a retag
+
+Every node gets a **structural key** — a path down the tree, where a numeric suffix counts same-tag siblings so that inserting one element shifts only its later siblings rather than reporting the whole subtree as changed. An `id` wins over everything, because an id is what a page author means by "this element" and it survives being moved.
+
+<CodeBlock
+  file="node keys"
+  lang="text"
+  code={`body>main>div.card
+body>main>div.card>h2
+body>main>div.card:2
+body>#checkout-form`}
+/>
+
+That key works well until an element changes tag. Consider the commonest kind of markup edit there is:
+
+<CodeBlock
+  file="before.html"
+  lang="html"
+  code={`<div class="card">
+  <h2>Order 1001</h2>
+</div>`}
+/>
+
+<CodeBlock
+  file="after.html"
+  lang="html"
+  code={`<div class="card">
+  <h3>Order 1001</h3>
+</div>`}
+/>
+
+The tag is **in the key**, so `body>main>div.card>h2` and `body>main>div.card>h3` cannot pair at all. One edit arrived as a removal plus an addition — two rows, describing nothing that happened.
+
+So a node carries a second field beside its key: `position`, which is the parent path plus the node's index among **all** element siblings, regardless of tag. It identifies the same _slot_ whatever is sitting in it. A second pass over the rows looks for a removal and an addition in the same slot with different tags, and folds them into one:
+
+| Node                    | Reported as                                      |
+| ----------------------- | ------------------------------------------------ |
+| `body>main>div.card>h2` | **changed** — with the detail `<h2> became <h3>` |
+
+One row, describing the edit that was actually made. Without the tag-free slot there were two: a removal of the `h2` and an addition of the `h3`, neither of which mentions the other.
+
+### The same bug, one level up
+
+`compareClasses: false` had exactly this shape of defect. Classes were part of the key too, so with class comparison switched off, a `div.a` that became a `div.b` in the same position still never paired — and "ignore classes" reported the whole subtree as removed-and-added instead of ignoring anything.
+
+The fix is the same insight, stated as a rule:
+
+<Callout
+  tone="warn"
+  title="Whatever a comparison ignores has to leave the key as well as the comparison"
+>
+  It is not enough to skip a property when comparing two nodes. If that property is part of what
+  identifies a node, the two nodes never become a pair in the first place, and skipping the
+  comparison is never reached. So **Compare classes** controls both: it drops `class` from the
+  comparison *and* from the key.
+</Callout>
+
+The same reasoning applies to **Ignore asset query**, which has to strip query strings from URL attributes in the structure section as well as in the assets section. A query string ignored in one place and reported in the other is a contradictory answer to the same question.
+
+### Attribute normalisation
+
+Two attributes are normalised before comparison, because two builds emitting the same thing in a different order is not a difference and reporting it trains people to ignore the section:
+
+- **`class`** becomes a sorted, de-duplicated list.
+- **`style`** keeps its declarations but sorts them.
+
+Everything else has its whitespace collapsed. Three attributes are ignored outright by default — `data-reactid`, `data-react-checksum` and `nonce` — and the list is an option.
+
+A node's `text` is its **own** text, not its descendants'. A child's text belongs to the child's row, so an edit deep in a page does not light up every ancestor.
+
+## Style: which declaration of which selector
+
+A text diff of two stylesheets reports that a line changed. What a reader wants is _which declaration_ of _which selector_ moved, so the stylesheet is parsed exactly far enough to answer that: selectors, declarations, and the at-rule a rule sits inside.
+
+<CodeBlock
+  file="rule keys"
+  lang="text"
+  code={`.card
+.card h2
+@media (min-width: 700px) › .card h2`}
+/>
+
+A selector list is sorted, so `a, b` and `b, a` are one rule. A selector appearing twice in one sheet — legal and common — has its declarations **merged in source order**, because that is what the browser does with them; comparing the two occurrences separately would report a difference that has no effect on the page.
+
+Note the consequence of keying on the selector: renaming a selector is a removed rule plus an added rule, not a changed one. In the sample pair, `.card h2` becoming `.card h3` shows up in the style section as two rows even though the structure section folds the element itself into one — the rule really did disappear and a different rule really did arrive.
+
+<Callout tone="note" title="It is not a CSS engine, and does not pretend to be">
+  No specificity, no cascade, no computed values — those need a browser. So the result says outright
+  that a rule which changed here may or may not change what the page looks like. Linked stylesheets
+  are **listed as assets rather than compared**: the file was not handed to the comparison, and
+  fetching it is a separate decision.
+</Callout>
+
+## Assets: a cache-busted bundle as one change
+
+The commonest real difference between two builds of the same site is a content hash. Reporting it as a removal plus an addition means every asset row in every comparison is noise, so unmatched assets get a second pass that pairs them on the tag plus the **shape** of the URL, with hash-looking runs replaced.
+
+A run counts as a hash if it is **8 or more hexadecimal characters**, or **6 or more digits**. The query string is dropped before the comparison, so a `?v=` cache-buster pairs too.
+
+<CodeBlock
+  file="what folds and what does not"
+  lang="text"
+  code={`app.a1b2c3d4.js  →  app.99887766.js     one row: "same asset, different URL"
+main.js?v=112233 →  main.js?v=445566    one row: "same asset, different URL"
+vendor.a1b2c3.js →  vendor.998877.js    two rows — six hex characters is below
+                                        the threshold, so the shapes differ`}
+/>
+
+<Callout tone="note" title="A short hash falls below the threshold">
+  Six hexadecimal characters is a plausible content hash and is *not* treated as one, because six
+  hex characters is also a plausible filename. The sample pair (`10-web-page/`) uses
+  `app.a1b2c3.css` → `app.998877.css`, which lands on the wrong side of that line and reads as one
+  removal plus one addition. Eight characters or more folds as intended.
+</Callout>
+
+Assets are collected from `img`, `script`, `link`, `source`, `video`, `audio`, `iframe`, `embed` and `object`, across `src`, `srcset`, `href` and `data`. Nothing is ever requested.
+
+## Accessibility: problems, not only differences
+
+This section reports **standing problems as well as changes**. That is deliberate: a comparison is where someone is already looking at the markup, and a section that only reported _differences_ in accessibility would stay silent on a page that was inaccessible in both versions.
+
+| Check                   | Reported when                                                      |
+| ----------------------- | ------------------------------------------------------------------ |
+| **Heading outline**     | The `h1`–`h6` sequence changed — what a screen reader navigates by |
+| **Images without alt**  | The count changed, **or** the after side has any at all            |
+| **Unlabelled controls** | The count changed, **or** the after side has any at all            |
+| **Document language**   | `lang` changed; flagged as a concern when it ends up unset         |
+| **Page title**          | The `<title>` changed                                              |
+
+A control counts as labelled by a `<label for="…">`, by sitting inside a `<label>`, by `aria-label` or `aria-labelledby`, or by being a submit button. Hidden inputs are exempt. An `alt=""` is a **decision** — an author saying the image is decorative — so only a missing `alt` attribute is reported, never an empty one.
+
+The sample pair's page loses the `alt` on its product image and gains an unlabelled search input, so both of those checks fire, alongside a changed heading outline (two `h2`s became `h3`s) and a changed title.
+
+## What it does not do
+
+<Callout tone="warn" title="Nothing is fetched, nothing is rendered, no screenshot is taken">
+  Both sides are saved files you chose. So the **visual axis of the [Diff
+  Radar](/docs/results/radar) stays absent** rather than reporting a zero — a zero would claim
+  nothing changed visually, and this comparison never looked. Comparing two live URLs needs a
+  network call and a bundled browser, and that decision has not been made.
+</Callout>
+
+## Limits
+
+| Limit               | Value  | What happens past it                                                                       |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| Nodes per page      | 20,000 | The walk stops                                                                             |
+| Tree depth          | 60     | Deeper nodes are not read — a page nested past this is defending itself against being read |
+| CSS rules per sheet | 5,000  | Parsing stops; past that a stylesheet is minified machinery rather than something to read  |
+| Result rows         | 20,000 | Capped, with the number of further differences counted and stated in the notes             |
+
+## In the app
+
+| Control                | What it does                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| **Section**            | Structure · Style · Assets · Accessibility, each with its count                                |
+| **Compare classes**    | On by default. Re-runs the engine, and leaves `class` out of the key as well as the comparison |
+| **Ignore asset query** | Off by default. Strips query strings from asset URLs and from URL attributes                   |
+
+Both toggles **re-run the comparison** rather than filtering the view, so the counts in the summary strip always describe the rows on screen. The page headers above the table name each side's title, node count and asset count.

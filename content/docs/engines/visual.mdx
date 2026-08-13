@@ -1,0 +1,138 @@
+---
+title: Visual regression
+description: Two directories of screenshots compared shot by shot from the command line, ordered worst-first, with per-pixel and per-image budgets so anti-aliasing does not fail a suite, and one number for a build to gate on.
+lede: Two folders of screenshots, compared shot by shot, ordered worst-first, with one number a pipeline can gate on. Command-line only — and that is a consequence of what it needs, not an omission.
+---
+
+<MediaFigure
+  priority
+  id="visual-regression"
+  alt="Terminal output from a visual regression run, listing three screenshots worst-first with the worst difference and an over-budget count"
+  caption={
+    <>
+      <b>Worst first.</b> A visual run is read from the top, and the interesting shot is the one
+      that moved most.
+    </>
+  }
+/>
+
+## The one invocation
+
+<CodeBlock file="terminal" lang="bash" code={`twinscope baseline/ current/ --engine visual`} />
+
+Screenshots pair on their **path relative to the folder you gave**, so `baseline/pages/checkout.png` compares against `current/pages/checkout.png` however deep the tree is. A shot present on one side only is reported as added or removed rather than as a difference.
+
+## Command-line only, by construction
+
+This engine needs two capabilities at once: it has to **list directories** and it has to **decode images**. No single process in the desktop app has both.
+
+| Where             | Filesystem | Image decoder | Verdict                    |
+| ----------------- | ---------- | ------------- | -------------------------- |
+| The engine worker | yes        | no            | cannot decode a screenshot |
+| The window        | no         | yes           | cannot list a directory    |
+| The command line  | yes        | yes           | **this is where it runs**  |
+
+Handing the window a whole baseline set as bytes over the app's internal bridge is exactly what the standing rule against moving big inputs across it forbids — a four-hundred-shot set is not a payload, it is a directory.
+
+So in the desktop app this engine **refuses, and its refusal names the command line** rather than failing obscurely:
+
+<CodeBlock
+  file="the refusal"
+  lang="text"
+  code={`Visual regression needs to read directories *and* decode images.
+Run it from the command line: twinscope baseline/ current/ --engine visual.`}
+/>
+
+**Compare as folders** is offered beside it as a button, since the [folder engine](/docs/engines/folders) can still tell you which screenshots changed at all — just not by how much.
+
+### Why you have to ask for it
+
+The engine's detection priority is **0**, which means detection never picks it. Two folders of screenshots and two folders of source code are indistinguishable from outside, so TwinScope does not guess: a plain `twinscope baseline/ current/` runs the [folder engine](/docs/engines/folders), which hashes files and finds renames, and `--engine visual` decodes every pair.
+
+Naming it is one word, and it saves accidentally decoding a repository.
+
+## Two budgets, and neither is zero
+
+<Callout tone="tip" title="Zero is the wrong default for a real screenshot suite">
+  Font rasterisation, anti-aliasing and GPU compositing move a handful of pixels between two runs on
+  the same machine. A suite that goes red on that gets switched off within a week, which is worse
+  than no suite at all. The defaults are deliberately forgiving; the build gate is yours to tighten.
+</Callout>
+
+| Setting            | Default | What it means                                                       |
+| ------------------ | ------- | ------------------------------------------------------------------- |
+| `threshold`        | `0.1`   | How different one **pixel** has to be to count — 10% of a channel   |
+| `perImagePercent`  | `0.1`   | What share of an **image** may differ before it is a regression     |
+| `ignore`           | none    | Globs against the relative path, for shots you do not want compared |
+| `maxImages`        | `2000`  | A hard cap, so a huge set cannot hang a build                       |
+| `--max-diff <pct>` | —       | The **build gate**: no image may differ by more than this           |
+
+Note that the two engine budgets and the build gate are separate things. `perImagePercent` decides what the report calls a regression; `--max-diff` decides whether the build fails. The number the gate reads is `worst difference` — the highest percentage across the whole set, so the run gates on its worst image.
+
+## The sample set
+
+`16-visual-regression/` holds three shots, chosen to show all three outcomes at once:
+
+| Shot            | Size      | Differing pixels | Difference | Outcome                                       |
+| --------------- | --------- | ---------------- | ---------- | --------------------------------------------- |
+| `dashboard.png` | 900 × 600 | 4,560            | **0.84%**  | over budget — a real regression               |
+| `login.png`     | 400 × 300 | 4                | 0.0033%    | changed, **under budget — passes on purpose** |
+| `settings.png`  | 400 × 300 | 0                | 0.0000%    | identical                                     |
+
+<CodeBlock
+  file="terminal"
+  lang="bash"
+  code={`$ twinscope 16-visual-regression/baseline 16-visual-regression/current --engine visual
+baseline → current
+Visual regression
+
++0 added -0 removed ~2 modified
+images: 3 · worst difference: 0.84% · over budget: 1`}
+/>
+
+Two shots are reported as modified and only **one** is over budget. `login.png` is the whole point of the example: four pixels out of 120,000 is what a font renderer does on a Tuesday, and a suite that failed on it would teach its owners to ignore it.
+
+## Gating a build
+
+<CodeBlock
+  file="ci"
+  lang="bash"
+  code={`twinscope baseline/ current/ --engine visual --max-diff 0.1
+# FAIL  difference 0.84% > allowed 0.1%
+# exit 1`}
+/>
+
+| Exit | Meaning                                            |
+| ---- | -------------------------------------------------- |
+| `0`  | No screenshot differs by more than the gate allows |
+| `1`  | At least one does, and the output names it         |
+| `2`  | Something went wrong                               |
+
+A threshold **takes over exit code 1**. Without one, exit 1 means "these two differ", which for a visual run is nearly always true and rarely a failure; with one, it means "these differ by more than you allowed".
+
+See [Continuous integration](/docs/tools/ci) for the workflow — including `--github`, which writes annotations and a job summary naming every threshold with a tick or a cross — and [the command line](/docs/tools/cli) for the rest of the flags.
+
+## Details worth knowing
+
+**Mismatched sizes compare on the union.** A screenshot that grew is a regression, not an error: both images are padded out to the larger width and height and compared across the whole area, exactly as the [image engine](/docs/engines/images) does. The pixel maths is literally the same code, so a fix to one fixes both.
+
+**One unreadable screenshot does not fail the run.** It is listed as its own row with the reason, and the other 399 still carry the answer. A run that threw away 399 useful comparisons because one file was truncated would be worse than one that reports the truncation.
+
+**Percentages are this engine's own arithmetic**, computed from the differing pixel count over the compared area, so a 4000 × 4000 pair and a 40 × 40 pair produce comparable numbers.
+
+**Symbolic links are skipped** during the walk, and the walk stops at 24 levels deep.
+
+**Images are scaled down past 4096 pixels** on their longest side before comparison. On the command line that downscale is nearest-neighbour, deliberately: an interpolating resample invents intermediate colours and inflates the number of pixels reported as different, which is the one number this engine exists to report.
+
+<Callout tone="warn" title="The command line decodes PNG only">
+  The engine walks for `png`, `jpg`, `jpeg`, `webp`, `gif`, `avif` and `bmp`, but the `twinscope`
+  binary carries one image decoder and it is a PNG decoder — the format every screenshot tool and
+  every visual-regression runner writes. Anything else is listed as an unreadable row saying so by
+  name, which beats a silent wrong answer and beats a second dependency.
+</Callout>
+
+## No adapters to install
+
+TwinScope compares directories of images; it does not take screenshots. Whatever Playwright, Cypress or Storycap already writes is what gets compared — there is no adapter to add and no TwinScope-shaped configuration for your test suite.
+
+Accepting a new baseline is a file copy you run yourself. TwinScope will not overwrite one of its own inputs.

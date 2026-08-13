@@ -1,0 +1,150 @@
+---
+title: Large text files
+description: How a multi-megabyte text pair is compared without ever being loaded — a byte-level block index, anchors that are exact rather than approximate, and folds that fetch their lines on demand.
+lede: Over 8 MB a side, the text diff hands over to a mode that indexes instead of reading. The rows look the same; the file is never held in one piece.
+---
+
+<MediaFigure
+  priority
+  id="large-text-windows"
+  alt="A 13.9 MB log pair compared as a handful of changed regions separated by folds that load their lines when opened"
+  caption={
+    <>
+      <b>Changed regions, with folds between them.</b> Each fold is a position in the file, not
+      lines held in memory.
+    </>
+  }
+/>
+
+## When it takes over
+
+A pair where **either side is over 8 MB** is routed here instead of to the ordinary [text diff](/docs/engines/text), and the detected bar says **Large text diff**. Three conditions, all of them checked:
+
+- both sides are a kind a line diff can read — text, code, JSON, YAML, CSV, Markdown, HTML, `.env`, or an unknown type;
+- both sides are **files on disk**. This mode reads byte ranges, so a pasted 8 MB string has nothing to range over;
+- one of them is over the threshold. Under it, the text engine is the better answer.
+
+<Callout tone="note" title="A structural engine still wins">
+  This engine sits above plain text in priority and below every structural one, so a 20 MB JSON pair
+  gets a [structural comparison](/docs/engines/json) rather than a line diff. It stays one pick away
+  in the engine dropdown when that is not what you wanted.
+</Callout>
+
+There is also no "this may take a few seconds" heads-up at these sizes — the one the ordinary engines show for a multi-megabyte pair. This mode exists _for_ that size, so warning about it would be warning about the thing that stopped being slow.
+
+## The index pass
+
+Nothing is read whole. Each side is walked in 1 MB chunks, and the scan looks for a single byte — `0x0A`, the newline. Every 64 lines it closes a **block** and records two things: the byte offset the block starts at, and a hash of its bytes.
+
+A gigabyte of log at 64 lines a block comes to roughly 156,000 entries — a few megabytes — and the file itself is never held anywhere.
+
+<CodeBlock
+  file="src/engines/large/lineIndex.ts"
+  lang="ts"
+  code={`// FNV-1a and a djb2 variant over the same bytes, in one pass.
+h1 = (h1 ^ byte) >>> 0;
+h1 = Math.imul(h1, 0x01000193) >>> 0;
+h2 = (Math.imul(h2, 33) ^ byte) >>> 0;`}
+/>
+
+Two decisions inside that loop are worth knowing about, because both are visible in the result.
+
+**Nothing is decoded.** Turning a gigabyte into strings costs more than everything else in the feature put together, and a chunked decoder has to carry partial sequences across every chunk boundary. So the hash is over raw bytes.
+
+**Two 32-bit hashes, not one.** At 156,000 blocks a single 32-bit hash expects a collision or three, and a collision here would silently anchor two blocks that differ. Combined into one key, the chance is negligible.
+
+## The two consequences, both stated in the app
+
+### Anchoring is byte-exact
+
+An anchored block pair is byte-identical, never merely similar. That is what makes the alignment trustworthy — and it also means a file saved with CRLF line endings and the same file saved with LF share **no** block hashes at all, so the whole pair reads as one enormous changed region.
+
+The comparison says so itself rather than leaving you to work it out. Its notes include, verbatim:
+
+> Anchoring is byte-exact, so a block whose lines differ only by case, whitespace or line endings is compared as a changed region rather than skipped.
+
+That is also why the normalisation toggles behave differently here from the ordinary text diff: they still apply _inside_ a changed region, where the real line diff runs, but they cannot make two blocks anchor to each other.
+
+### UTF-16 is refused by name
+
+Every ASCII character in a UTF-16 file is a byte followed by a NUL. A scanner looking for `0x0A` finds every newline correctly and then produces text with a NUL between every two characters — a comparison that looks entirely successful and is nonsense.
+
+So the first 64 bytes of each side are checked for a byte-order mark, or for NULs making up more than a quarter of the sample, and a file that looks like UTF-16 is refused outright with **Compare as text** offered as the way through. See [encodings](/docs/reference/encodings) for what the ordinary path does with UTF-16.
+
+## Anchors, then windows
+
+1. **Keep the hashes that occur exactly once on each side.** A hash that repeats — a run of blank lines, the same stack trace twice — says nothing about position, and pairing on it is how an alignment goes wrong. A repeated block is therefore never an anchor, which is why a long run of identical lines anchors nothing and becomes one window.
+2. **Take the longest increasing subsequence of those pairs**, since an alignment cannot run backwards. Patience sorting, so it is `n log n` rather than the quadratic form — an LCS over 156,000 blocks a side would be 24 billion comparisons.
+3. **Diff only the gaps.** Each unmatched span is a window: those bytes are read on both sides and handed to the ordinary text engine, and the line numbers are shifted into the whole file's numbering afterwards. Consecutive matched blocks merge into one span, so a thousand identical blocks in a row is one fold rather than a thousand.
+
+Identical inputs skip all of it: the two indexes are compared directly, and the result says _"These inputs are identical — N blocks of 64 lines match byte for byte."_
+
+## A fold is a byte range
+
+In this mode a fold carries a position in the file instead of the lines it hides, because holding them would defeat the point. Clicking one fetches exactly that range and remembers it for the session.
+
+That fetch is capped at **4 MB**, and folds are therefore split at **3 MB** so that every fold the engine emits can actually be opened. One fold per matched span was the first attempt, and a barely-changed 9 MB region then produced a single fold the view could only label _"too large to load"_ — most of the file, permanently shut.
+
+| Fold label                                | What it means                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------- |
+| `⋯ N unchanged lines — click to expand`   | An anchored region. Opening it fetches those bytes                |
+| `⋯ N unchanged lines — too large to load` | Past the 4 MB fetch cap. The button is disabled rather than lying |
+| `⋯` followed by a note                    | A cap was hit — the note replaces the label and says which        |
+
+## Caps, and what each one says
+
+| Cap                | Value                    | What happens past it                                                                                                                                                                   |
+| ------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One window         | 20,000 lines, both sides | The region becomes a fold reading `N lines before ／ M lines after — this region is too large to diff line by line`, and its lines are counted as removed and added rather than paired |
+| Rows in the result | 80,000                   | A final fold says how many later regions are counted but not shown, and a note repeats it                                                                                              |
+| One fold           | 3 MB                     | The span is split into several folds                                                                                                                                                   |
+| One fetch          | 4 MB                     | The fold is labelled and disabled                                                                                                                                                      |
+
+Every one of them appears in **Explain**, beside the normalisation controls. A cap that renders as an ordinary fold reads as "nothing else changed here", which is the one thing a large-file mode must never imply.
+
+## Everything else is the text diff
+
+The engine emits the same rows as the ordinary text engine, so the view is the same view: three modes cycled with <Kbd>{'⌘\\'}</Kbd>, word-level marks inside a changed line, <Kbd>⌘F</Kbd> as a find rather than a filter, and change navigation with <Kbd>⌥↑</Kbd> / <Kbd>⌥↓</Kbd>.
+
+<MediaFigure
+  id="text-side-by-side"
+  alt="A side-by-side text comparison with paired modified rows and word-level marks"
+  caption={
+    <>
+      <b>Same rows, same view.</b> What differs is where the rows came from.
+    </>
+  }
+/>
+
+The [Diff Radar](/docs/results/radar) shows two axes here and leaves the other four hollow: a line diff over bytes it never decoded knows about structure and content, and nothing about visuals, metadata, dependencies or weight. An axis it cannot measure is absent, not zero.
+
+## The sample pair
+
+`02-large-text/` in the sample set is a log pair of **13.9 MB a side, 120,001 lines**, with four edits buried in it: one line where a level flipped from `INFO` to `ERROR` and its status went 200 to 500, one line replaced 40,000 lines in, and — near the end, a hundred lines apart — one line inserted and one dropped.
+
+<DiffSample
+  file="before.log → after.log"
+  summary="1 added · 1 removed · 2 modified — in 3 regions"
+  rows={[
+    { ln: 10, text: '…09:09:03.009Z INFO  [render] request=9 took=196ms status=200' },
+    {
+      kind: 'del',
+      ln: 11,
+      text: '…10:10:10.010Z ⟦INFO⟧  [auth] request=10 took=15ms status=⟦200⟧',
+    },
+    {
+      kind: 'add',
+      ln: 11,
+      text: '…10:10:10.010Z ⟦ERROR⟧ [auth] request=10 took=15ms status=⟦500⟧',
+    },
+    { ln: 12, text: '…11:11:17.011Z INFO  [billing] request=11 took=734ms status=200' },
+  ]}
+/>
+
+The comparison indexes both sides into **1,875 blocks**, anchors on **1,870** of them, and diffs the three regions between — so four changed lines out of 240,000 are found by reading a few thousand lines. The strip carries the block count; the notes name the anchors and the regions.
+
+## Performance
+
+A **1 GB pair of logs is navigable in 9.4 seconds** using about 120 MB of memory. The 13.9 MB sample above is effectively instant.
+
+The cost is dominated by the index pass, which is linear in bytes and touches every one of them exactly once. Adding changes barely moves it: what grows is the number of windows, and a window is only ever as large as the gap between two anchors.

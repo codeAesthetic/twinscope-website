@@ -1,0 +1,130 @@
+---
+title: PDF
+description: Two PDFs compared as documents rather than as binaries — pages paired by their content so an inserted cover shifts nothing, metadata as its own table, page geometry, and pages with no extractable text named as such.
+lede: Pages paired by their content, not by their number, so inserting a cover page does not report the whole document as changed. Each changed page is compared by the text engine, marks and folding included.
+---
+
+<MediaFigure
+  priority
+  id="pdf-pages"
+  alt="A PDF comparison showing a metadata table above a list of pages, the first added and the rest carrying their page numbers on both sides"
+  caption={
+    <>
+      <b>Page 1 is added; nothing after it moved.</b> The page numbers on each side of a row are
+      what pairing by content buys you.
+    </>
+  }
+/>
+
+## Pages pair by content, not by index
+
+This is the decision the engine is built around. Insert a cover page and every page number after it shifts by one — so a comparison that paired page 4 against page 4 would report an entire document as rewritten when a single page was added at the front.
+
+Instead, the two lists of page texts are aligned the way the [text engine](/docs/engines/text) aligns lines, one level up: a sequence diff with a **similarity comparator**, so two pages count as the same page when they share more than half their words. A removal immediately followed by an addition is read as a rewritten page while both sides still have one; past that, whichever side ran out has the page missing.
+
+### The sample pair
+
+`11-pdf/` is a three-page supply agreement against a four-page revision of it. The revision adds a cover page at the front, edits the delivery and payment terms, and turns the last page landscape:
+
+| Before | After | State       | Why                                                             |
+| ------ | ----- | ----------- | --------------------------------------------------------------- |
+| —      | 1     | **added**   | The new cover page                                              |
+| 1      | 2     | same        | Definitions and Orders, untouched                               |
+| 2      | 3     | **changed** | 30 days → 14 days, 30 days → 45 days, 4% → 8%, one new sentence |
+| 3      | 4     | **changed** | The words are identical; the page was rotated                   |
+
+Every page keeps its identity. Paired on number instead, all four rows would have read as changed.
+
+## Each changed page is a text diff
+
+The comparison inside a page is the text engine's, not a second implementation of one. So word-level marks, folded unchanged runs and the shared [normalisation rules](/docs/results/normalisation) all work inside a page for free:
+
+<DiffSample
+  file="Page 2 → 3"
+  summary="3 modified"
+  rows={[
+    { kind: 'del', text: 'The Supplier shall deliver within ⟦30⟧ days of acknowledgement.' },
+    { kind: 'add', text: 'The Supplier shall deliver within ⟦14⟧ days of acknowledgement.' },
+    { kind: 'ctx', text: 'Risk passes on delivery to the Customer premises.' },
+    { kind: 'del', text: 'Interest on late payment accrues at ⟦4⟧% above base rate.' },
+    { kind: 'add', text: 'Interest on late payment accrues at ⟦8⟧% above base rate.' },
+  ]}
+/>
+
+## Metadata is its own table
+
+Title, Author, Producer and whatever else the document carries are compared as a table of their own, and **only the fields that differ are listed**. In the sample pair that is one field: the Title gains a `v3` while the Author and Producer are unchanged.
+
+Metadata comparison is an option and can be turned off, in which case no metadata rows appear at all.
+
+## Geometry: a resized page is a changed page
+
+A page whose size in points changed is reported **even when its words did not**. That is the last row of the sample pair: `595 × 842` became `842 × 595` — the same A4 page turned landscape — with identical text on it. A comparison that only looked at words would have called that page unchanged, which is not what a reader would say about it.
+
+## A page with no text says so
+
+A scan, or a page that is one large image, has nothing for a text comparison to read. Those pages are counted and named — reported as having no extractable text — rather than shown as identical, which is what an empty-against-empty comparison would otherwise produce.
+
+The count is of **page positions**, not of pages: a position that is blank on both sides is one page in the comparison, not two.
+
+## Two honest limits
+
+<Callout tone="warn" title="CJK text needing an external CMap extracts incompletely">
+  The PDF parser ships a whole web viewer, a second build, image decoders, character maps and
+  standard fonts. This app renders no pages, so all of that is excluded from the installer — 20 MB
+  against a 130 MB budget — and the two URLs that would reach the character maps and the standard
+  fonts are deliberately left unset.
+
+The cost is real and stated rather than hidden: a document whose CJK text depends on an external
+CMap extracts incompletely, and the parser says so in the text it returns.
+
+</Callout>
+
+<Callout tone="warn" title="Pages are not rendered and not compared visually">
+  Rendering a page needs a rasteriser — a canvas, which lives in the window where this engine does
+  not run, or a native dependency. So the **visual axis of the [Diff Radar](/docs/results/radar)
+  stays absent** rather than reporting a zero, and the result names the real alternative instead of
+  leaving you to wonder: export the pages as PNGs and compare those two folders with the [visual
+  engine](/docs/engines/visual).
+</Callout>
+
+## A gotcha worth knowing about
+
+<Callout tone="note" title="The PDF parser thinks a utility process is a browser">
+  The parser decides where it is running by reading `process.type`. Undefined or `'browser'` means
+  Node; anything else means a renderer. Electron's utility process — where the comparison engines run
+  — reports `'utility'`, which is neither.
+
+So the parser skipped the Node polyfills it would otherwise have applied and died on a missing
+`DOMMatrix`, then demanded a worker script for a Web Worker that process cannot construct. The app
+hides `process.type` for the duration of the import, which is the **truthful** answer rather than a
+trick: a utility process _is_ Node without a DOM. It is restored immediately afterwards.
+
+</Callout>
+
+<Callout tone="note" title="The command line cannot compare PDFs in 0.3.8">
+  The bundled `twinscope` binary has no parser worker file beside it, so a `.pdf` pair fails with a
+  "fake worker" error rather than refusing cleanly the way the visual engine does. Compare PDFs in
+  the app, which reads them correctly.
+</Callout>
+
+## Limits
+
+| Limit           | Value | What happens past it                                                          |
+| --------------- | ----- | ----------------------------------------------------------------------------- |
+| Pages per side  | 500   | Reading stops and the notes say so                                            |
+| Page similarity | 0.5   | Below it, two pages are a removal and an addition rather than one edited page |
+
+The similarity floor is deliberately lower than the text engine's line threshold: a page holds far more words than a line, so two versions of the same page can differ a great deal and still obviously be the same page.
+
+## When a document cannot be read
+
+An encrypted or corrupt PDF is a real answer, not a crash. The error names the reason and offers **Compare as files** as a button — the [binary engine](/docs/engines/binary) can still say whether the two files are the same bytes, which is sometimes all you needed.
+
+## In the app
+
+| Control         | What it does                                        |
+| --------------- | --------------------------------------------------- |
+| **Show**        | Changed pages · All (with a count)                  |
+| Page-count chip | `3 → 4 pages`, always visible                       |
+| No-text chip    | Appears only when some page has no extractable text |

@@ -1,0 +1,140 @@
+---
+title: VS Code extension
+description: Right-click two files or folders in the explorer and compare them in TwinScope — a thin extension built on the twinscope:// link, which the app asks about before it reads anything.
+lede: Two commands in the explorer's context menu. The extension builds a link and hands it to the operating system; TwinScope shows you both paths and asks before it opens them.
+---
+
+<Callout tone="warn" title="Not on the Marketplace">
+  This extension is **unpublished**. Putting it on the Marketplace needs a publisher account, which
+  has not been set up — so there is nothing to search for in VS Code, and installing it means
+  building the `.vsix` yourself. The instructions are below and they take one command.
+</Callout>
+
+<MediaFigure
+  priority
+  id="vscode-compare"
+  alt="The VS Code explorer context menu with Compare in TwinScope shown for two selected files"
+  caption={
+    <>
+      <b>Two selected, right-click, compare.</b> The extension never reads the files — it names them
+      in a link and lets the app ask.
+    </>
+  }
+/>
+
+## What it does
+
+Three commands, all in the explorer's context menu:
+
+| Command                               | When it appears                                         |
+| ------------------------------------- | ------------------------------------------------------- |
+| **Compare in TwinScope**              | Two or more entries are selected                        |
+| **Select for TwinScope Compare**      | One entry is selected                                   |
+| **Compare with Selected (TwinScope)** | One entry is selected _and_ something is already marked |
+
+The first is the direct form. The second and third are the two-step form, for
+entries that are not next to each other in the tree — the same shape as VS Code's
+own **Select for Compare**.
+
+The marked entry lives in that window only and is not persisted, and it is cleared
+once it has been compared. **Compare with Selected** is genuinely absent until there
+is something to compare with, rather than present and inert.
+
+Select more than two and it uses the first two, in the order VS Code reports them,
+and tells you it did. TwinScope compares two things; silently picking a different
+pair would be worse than saying so. An entry that is not a file on disk — a
+virtual document, something inside an archive — is refused for the same reason.
+
+## Installing it from source
+
+<CodeBlock
+  file="Package and install"
+  lang="bash"
+  code={`cd integrations/vscode
+npx @vscode/vsce package        # -> twinscope-vscode-0.2.12.vsix
+code --install-extension twinscope-vscode-0.2.12.vsix`}
+/>
+
+There is no build step: the extension is one CommonJS file with no dependencies. It
+needs VS Code 1.90 or newer.
+
+<Callout tone="note" title="Install the app first, and launch it once">
+  The extension is useless on its own — it does not bundle TwinScope, does not spawn anything, and
+  has no fallback if the app is missing. TwinScope has to be installed, and launched at least once,
+  so that the operating system knows which application owns the `twinscope://` scheme.
+</Callout>
+
+## The link it builds
+
+Everything the extension does is this:
+
+<CodeBlock
+  file="integrations/vscode/extension.js"
+  lang="ts"
+  code={`function linkFor(a, b) {
+  return 'twinscope://compare?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b);
+}`}
+/>
+
+It hands that to the OS and stops. It reads no files, spawns no process, and has no
+setting to get wrong — which also means it has no security decision to make,
+because the app makes all of them.
+
+The same link appears in an [exported HTML report](/docs/results/export) as **Open
+in TwinScope**, when both sides were files on disk. One scheme, two producers.
+
+## A link is the least trusted input the app has
+
+Any web page can open one. So can an email, a PDF, a chat message — with no user
+gesture that says which application it lands in, and no way to know who wrote it.
+That makes `twinscope://` a lower-trust input than a dropped file, and it is
+handled three checks deep.
+
+### 1. A pure parser, which refuses far more than it accepts
+
+`twinscope://compare?a=<path>&b=<path>` with an optional `engine=<id>`. Both paths
+must be **absolute** — POSIX, Windows drive or UNC. A relative path is refused
+rather than resolved, because "compare `./secrets`" would otherwise mean something
+different depending on how TwinScope happened to be launched.
+
+Also refused: an empty path, a path over 4096 characters, a path containing a NUL
+byte, any action other than `compare`, and an `engine` value that is not a plain
+lowercase engine id.
+
+Every rejection returns the same nothing. There is deliberately no message
+explaining _why_ a link from an unknown source was malformed, because a message
+quoting it back would put attacker-chosen text into a dialog.
+
+### 2. The same path validation every other path gets
+
+A parsed path then goes through the identical schema a dropped file's path does:
+absolute only, NUL rejected, then canonicalised. The NUL check happens twice on
+purpose — a NUL truncates inside the platform's own file layer, so a path can be
+validated as one string and opened as another.
+
+### 3. A modal that names both files, before anything is read
+
+<Callout tone="privacy" title="This is the check that matters">
+  Without it, `twinscope://compare?a=/etc/passwd&b=/etc/hosts` on a web page would make TwinScope
+  display two of your files to whoever asked for them. Nothing is read until you agree.
+</Callout>
+
+The dialog shows both **full paths**, not just the file names. The entire question
+is _which_ files a stranger's link wants opened, and "compare `a.json` and
+`b.json`?" answers nothing.
+
+Agree, and TwinScope reads the pair and runs the comparison — through the same
+[handoff the quick panel uses](/docs/workflow/quick-compare). Loading it and waiting
+for a second click was the first design, and it protects nothing: agreeing to open
+two named files is agreeing to see them compared, and **Open in TwinScope** landing
+on an unstarted comparison reads as a failure.
+
+## Keeping the two halves honest
+
+The extension hand-builds its URL rather than importing the app's own link builder,
+because it is a separate runtime, published separately, with no bundler. Two copies
+of a format is exactly how a format drifts.
+
+So the app's test suite asserts that its parser accepts precisely the shape this
+file produces. Change one and that test fails, which is the cheapest available
+substitute for sharing the code.

@@ -114,11 +114,14 @@ export default function Download() {
             those platforms, with the caveat above.
           </p>
 
-          <Callout tone="privacy" title="No update checks unless you ask">
+          <Callout tone="privacy" title="No auto-update, and no update check unless you ask">
             <p>
-              {release.version} has no auto-updater. Watch the repo or check{' '}
-              <Link href="/changelog">the changelog</Link> — the app will not phone home to find
-              out.
+              Nothing here updates itself. {release.version} can <em>tell</em> you when a newer
+              version exists — a switch in Settings, off by default, that asks GitHub for the latest
+              version number once per launch. It never downloads or installs anything: the release
+              page opens in your browser and you decide. With the switch off nothing is contacted at
+              all. See <Link href="/docs/history/updates">Update checks</Link>, or watch{' '}
+              <Link href="/changelog">the changelog</Link>.
             </p>
           </Callout>
         </div>

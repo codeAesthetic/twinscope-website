@@ -1,0 +1,184 @@
+---
+title: The Diff Radar
+description: Six axes that score what a comparison changed, so two comparisons can be compared at a glance — with an axis nothing measured drawn hollow rather than plotted at zero.
+lede: Counts tell you how much changed. The radar tells you what kind of change it was — and, just as importantly, which questions this comparison could not answer.
+---
+
+Two comparisons of the same size can be nothing alike. Forty changed lines in one
+file and forty renamed files are both "40", and the number is the least
+interesting thing about either. The Diff Radar is the shape of a change: six axes,
+scored 0–100, from a **Radar** button beside the counts.
+
+<MediaFigure
+  priority
+  id="radar-axes"
+  alt="The Diff Radar open beneath the summary strip, with two filled axes, four hollow ones and a line naming what was not measured"
+  caption={
+    <>
+      <b>Six axes, two of them measured.</b> A line diff knows about lines. The other four are
+      hollow, and named underneath.
+    </>
+  }
+/>
+
+It is collapsed by default, because most comparisons are read by their numbers.
+
+## The rule that makes it worth trusting
+
+**An axis an engine cannot measure is absent, never zero.**
+
+Zero is a claim. It says "nothing changed on this axis" — and a comparison of two
+images has nothing whatever to say about dependency licences. Reporting that as a
+zero would be a measurement nobody took, drawn as a measurement of nothing.
+
+So the scores are a partial record, and three things follow from that:
+
+1. **An absent axis is drawn hollow, at the centre**, with a slightly larger empty
+   ring than a real point, and the polygon is pulled in to meet it rather than
+   pushed out to the rim.
+2. **It is named in words, not only in the drawing** — a line under the chart reads
+   _Not measured by this comparison: Visual, Metadata, Deps, Weight._ A picture
+   cannot be relied on to carry a negative.
+3. **The legend only lists measured axes.** There is no key to click for an axis
+   with no score behind it.
+
+<Callout tone="note" title="Identical inputs get no radar at all">
+  When two inputs are the same, engines answer without comparing anything — so there is nothing to
+  score, and the **Radar** button is simply not there. Six zeroes would claim six measurements were
+  taken.
+</Callout>
+
+## The six axes
+
+| Axis         | Label       | What it counts                                              |
+| ------------ | ----------- | ----------------------------------------------------------- |
+| Structure    | `Structure` | Things added or removed — keys, files, rows, packages       |
+| Content      | `Content`   | Things changed in place, without appearing or disappearing  |
+| Visual       | `Visual`    | How much of the rendered picture differs                    |
+| Metadata     | `Metadata`  | Renames, type changes, licences — the facts around the data |
+| Dependencies | `Deps`      | How much of the dependency set moved                        |
+| Performance  | `Weight`    | Whether the change makes the thing bigger or heavier        |
+
+Clicking an axis in the legend prints that sentence under the chart. The
+definitions are written down in the app rather than implied by the drawing,
+which is the point of the next two sections.
+
+### One curve, shared by every axis scored from a ratio
+
+Almost every score is "how much of this changed, out of how much there was", and
+they all go through the same function — a square root rather than a straight line.
+Linear is the wrong shape: two changed lines in a 4000-line file is 0.05%, which
+draws as nothing at all, and "a couple of lines changed" is exactly what you
+wanted to see.
+
+| Share of the whole that changed | Score |
+| ------------------------------- | ----- |
+| 1 in 100                        | 10    |
+| half                            | 71    |
+| all of it                       | 100   |
+
+Nothing reaches the rim until the change really is total. And because it is one
+curve, a `62` on Structure in a folder comparison and a `62` on Content in a JSON
+one describe the same amount of movement.
+
+Where an axis compares two quantities rather than counting a share — bytes, file
+sizes, package counts, pixel counts — the gap is measured against the larger of
+the two and then put through the same curve. So a thing that doubled and a thing
+that halved both score 71: both are large changes, in opposite directions.
+
+## Two definitions worth reading
+
+These are the two places the radar could have quietly lied, so both are worked
+out in the open.
+
+### Git's Content axis is scored on files, not lines
+
+Git will tell you how many lines changed. It will never tell you how many lines a
+file has — so there is no denominator for a line ratio, and inventing one is
+exactly what "only ship this if the scores are honest" rules out.
+
+The first attempt scored a file's content against twice its own change count,
+which is arithmetic that always produces the same answer: **71**, on every
+comparison, for every repository. A constant dressed as a measurement is worse
+than a gap, because it looks like data.
+
+So a git comparison scores Structure, Content and Metadata on **how many of the
+changed files** were added or removed, modified, or renamed. That is a real ratio
+with a real denominator, and it is the same one the folder engine uses.
+
+### "Performance" had no definition, so it got one — and a new label
+
+The axis came from the product spec with a name and no meaning attached, which is
+precisely where a fabricated number gets in: any code can be written under a word
+nobody has defined.
+
+It is defined here as **weight** — does this change make the thing bigger or
+heavier? — and relabelled `Weight` on the chart so the word matches the
+measurement:
+
+| Comparison       | What weight means               |
+| ---------------- | ------------------------------- |
+| **Folders**      | Total bytes in the tree         |
+| **Binary files** | File size                       |
+| **Dependencies** | Transitive package count        |
+| **Images**       | Pixel count                     |
+| **Saved pages**  | Number of assets the page loads |
+| **PDFs**         | Number of pages                 |
+
+Everything else leaves it absent.
+
+## What each engine can measure
+
+Blind spots differ by engine, and that is the useful part: the shape of the gaps
+tells you what kind of comparison you are looking at.
+
+| Engine                                                                               | Measures                                                           | Cannot measure                                                 |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| **[Text and code](/docs/engines/text)**, [large text](/docs/engines/large-text)      | Structure, Content                                                 | Visual, Metadata, Deps, Weight                                 |
+| **[JSON](/docs/engines/json)**, [YAML](/docs/engines/yaml), [XML](/docs/engines/xml) | Structure, Content, Metadata (type changes)                        | Visual, Deps, Weight                                           |
+| **[CSV](/docs/engines/csv)**                                                         | Structure, Content, Metadata (columns)                             | Visual, Deps, Weight                                           |
+| **[Dependencies](/docs/engines/deps)**                                               | Deps, Structure, Content — plus Metadata and Weight from lockfiles | Visual; and licences or transitive weight from a manifest pair |
+| **[Folders](/docs/engines/folders)**                                                 | Structure, Content, Metadata (renames), Weight                     | Visual, Deps                                                   |
+| **[Git refs](/docs/engines/git)**                                                    | Structure, Content, Metadata (renames and copies)                  | Visual, Deps, Weight                                           |
+| **[Images](/docs/engines/images)**                                                   | Visual, Structure, Weight                                          | Content, Metadata, Deps                                        |
+| **[Binary](/docs/engines/binary)**                                                   | Content, Weight                                                    | Structure, Visual, Metadata, Deps                              |
+| **[API](/docs/engines/api)**                                                         | Structure, Content, Metadata                                       | Visual, Deps, Weight                                           |
+| **[Config](/docs/engines/config)**                                                   | Structure, Content, Metadata (secrets)                             | Visual, Deps, Weight                                           |
+| **[Saved pages](/docs/engines/web)**                                                 | Structure, Content, Metadata, Weight                               | **Visual** — nothing was rendered                              |
+| **[PDF](/docs/engines/pdf)**                                                         | Structure, Content, Metadata, Weight                               | **Visual** — no page was rendered                              |
+| **[Visual regression](/docs/engines/visual)**                                        | Visual, Structure, Content                                         | Metadata, Deps, Weight                                         |
+
+Two of those rows are the rule earning its keep. The page and PDF engines both
+compare documents that _have_ a rendered appearance, and neither of them renders
+one — so `Visual` stays blank rather than reporting a zero that would read as "it
+looks the same".
+
+<Callout tone="tip" title="Two axes that are not ratios">
+  An image either changed shape or it did not, so its **Structure** score is 0 or 100 — a middling
+  number would imply a scale that does not exist, and binary comparison treats Content the same way.
+  An image's **Visual** score is not curved either: it is the difference percentage the comparison
+  already reports, because that number is already the answer and rescaling it would only make the
+  chart disagree with the figure beside it.
+</Callout>
+
+## Why dependencies shipped first
+
+The Deps axis is the reason [dependency comparison](/docs/engines/deps) was built
+before the radar, out of order. Six axes where one of them can never be filled by
+anything is five axes and a decoration — and an axis that exists only to be
+hollow is not honest, it is unfinished. The data had to exist before the chart
+could claim to plot it.
+
+A **manifest** pair still leaves two axes empty: `package.json` files resolve
+nothing, so there are no licences to compare and no transitive count to weigh.
+Compare the two lockfiles and both fill in. That difference is visible on the
+chart, which is the whole idea.
+
+## Every score comes from a number the engine already had
+
+There is no second pass over your files to produce a radar, and no metric that
+exists only for it. Each engine hands over counts it computed anyway — added,
+removed, modified, renames, changed cells, changed pixels, transitive packages —
+and the radar rescales them. Which means a score can never disagree with the
+counts in the [summary strip](/docs/comparing/reading-a-result) above it: they are
+the same numbers, drawn twice.

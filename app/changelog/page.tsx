@@ -28,8 +28,8 @@ import { SITE, absoluteUrl } from '@/lib/site';
 const SOURCE = join(process.cwd(), 'data', 'changelog.md');
 
 const DESCRIPTION =
-  `Every release of ${SITE.name}, from the app's own CHANGELOG.md — including what is in ` +
-  `main but not yet in the ${SITE.documentsVersion} download.`;
+  `Every release of ${SITE.name}, generated from the app's own CHANGELOG.md so it cannot drift ` +
+  `from the release notes.`;
 
 export const metadata: Metadata = {
   title: 'Changelog',
@@ -138,6 +138,21 @@ function parseChangelog(markdown: string): Release[] {
 }
 
 /**
+ * Rewrites a link that only made sense inside the app repo.
+ *
+ * This page renders the app's own CHANGELOG.md, and its relative links point at
+ * files in that repository — `docs/ci.md`, `docs/visual-regression.md`. On the
+ * website those resolve to nothing, which the link checker catches. They are sent
+ * to the file on GitHub rather than guessed at a site page: the changelog is
+ * quoting a specific document, and a plausible-looking substitute would be a
+ * different one.
+ */
+function resolveHref(href: string): string {
+  if (/^[a-z]+:|^\/|^#/.test(href)) return href;
+  return `${SITE.repo}/blob/main/${href.replace(/^\.\//, '')}`;
+}
+
+/**
  * The inline markdown a changelog actually uses: bold, emphasis, code and links.
  * Recursive, because the app's notes put code inside bold (`**Per-side `＋`**`),
  * and a flat pass would render the backticks.
@@ -158,7 +173,7 @@ function inline(text: string): ReactNode[] {
     const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
     if (link) {
       return (
-        <a key={index} href={link[2]}>
+        <a key={index} href={resolveHref(link[2])}>
           {link[1]}
         </a>
       );

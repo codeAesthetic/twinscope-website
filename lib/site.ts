@@ -16,7 +16,7 @@ export const SITE = {
   name: 'TwinScope',
   tagline: 'Compare anything. Understand what changed.',
   /** The app version this site documents (plan W9). One version, on purpose. */
-  documentsVersion: '0.1.0',
+  documentsVersion: '0.3.8',
   repo: 'https://github.com/codeAesthetic/twinscope',
   websiteRepo: 'https://github.com/codeAesthetic/twinscope-website',
 } as const;

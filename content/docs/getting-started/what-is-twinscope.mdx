@@ -57,12 +57,17 @@ things, and working out what they are is its job, not yours.
 | **A git client**    | It compares the two things you hand it. It has no notion of repositories, branches, commits or history, and it does not shell out to `git`. |
 | **A cloud service** | There is no account, no sign-in, no upload and no server. It is a desktop app that reads two paths off your disk.                           |
 
-<Callout tone="privacy" title="No network calls at runtime">
-  TwinScope makes none. Not telemetry, not crash reports, not an update check, not a font or an icon
-  fetched from a CDN. In a packaged build the renderer's Content-Security-Policy sets `connect-src
-  'self'` and the app denies every navigation away from its own page.
-  [Privacy](/docs/getting-started/privacy) shows you how to verify that yourself rather than take
-  our word for it.
+<Callout tone="privacy" title="One network call, and it is off by default">
+  No telemetry, no crash reports, no font or icon fetched from a CDN. The single exception is an
+  **update check you have to turn on**: it asks GitHub for the latest version number, tells you, and
+  never downloads or installs anything. With the switch off nothing is contacted at all, and the
+  refusal lives in the process that would make the request rather than in the window.
+
+The renderer itself still reaches nothing: its Content-Security-Policy sets `connect-src 'self'`,
+the check is made from the main process, and the app denies every navigation away from its own
+page. [Update checks](/docs/history/updates) explains it in full, and
+[Privacy](/docs/getting-started/privacy) shows you how to verify all of it yourself.
+
 </Callout>
 
 ## Who it is for
