@@ -92,16 +92,26 @@ it was supposed to be guarding went wrong.
 Two outputs, because GitHub reads two places and an integration whose entire output
 is a wall of stdout is one nobody reads.
 
-<MediaFigure
-  priority
-  id="ci-annotations"
-  alt="A GitHub Actions job summary showing the counts, a table of thresholds with ticks and crosses, and a folded section listing what the comparison did"
-  caption={
-    <>
-      <b>The job summary is the part somebody reads.</b> Counts, then every threshold with its
-      verdict, then — folded away — what the comparison actually did.
-    </>
-  }
+<CodeBlock
+  file="Terminal"
+  lang="text"
+  code={`$ twinscope baseline/ current/ --engine visual --max-diff 0.1
+baseline → current
+Visual regression · 21 ms
+
++0 added -0 removed ~2 modified
+images: 3 · worst difference: 0.84% · over budget: 1
+
+• Compared 3 screenshots by relative path.
+• A pixel counts as different past 10% of a channel, and an image counts as a
+regression past 0.1% of its pixels — anti-aliasing moves a handful on every
+run, so zero is the wrong budget for a real suite.
+
+FAIL difference 0.84% > allowed 0.1%`}
+/>
+
+That run exits **1**. The same pair with `--max-diff 5` exits **0** — the images still differ, and the build still passes, which is the whole point of a threshold. Both exit codes were checked against the built binary rather than read off the source.
+}
 />
 
 **Annotations** are one `::error` per failed threshold, or a single `::notice` with

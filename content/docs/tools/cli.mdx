@@ -13,16 +13,22 @@ twinscope --repo <path> <ref> <ref> [options]
 Either operand may be - to read that side from stdin (one side only).`}
 />
 
-<MediaFigure
-  priority
-  id="cli-output"
-  alt="A terminal showing twinscope comparing two JSON files: the two names, the engine and timing, the counts, and the normalisation notes underneath"
-  caption={
-    <>
-      <b>The default output is the summary strip, in text.</b> Counts, then what the comparison
-      actually did — the same explainability rule the app follows.
-    </>
-  }
+<CodeBlock
+  file="Terminal"
+  lang="text"
+  code={`$ twinscope 03-json/before.json 03-json/after.json
+before.json → after.json
+Structural JSON diff · 0 ms
+
++3 added -1 removed ~8 modified
+nodes: 29 · type change: ⚠ 1
+
+• Compared objects as sets of keys (order ignored).
+• Matched array items by identity, not index.`}
+/>
+
+Counts first, then what the comparison actually did — the same explainability rule the app follows. This is real output, not an illustration: it is what the sample JSON pair prints today.
+}
 />
 
 ## Real invocations
