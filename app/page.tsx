@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { Chip, Kbd, MediaFigure } from '@/components/content';
+import { Chip, CodeBlock, Kbd, MediaFigure } from '@/components/content';
 import { EngineCard } from '@/components/home/EngineCard';
 import { Step } from '@/components/home/Step';
 import { SiteFooter } from '@/components/layout/SiteFooter';
@@ -67,7 +67,8 @@ const SOFTWARE_LD = {
     'Windowed mode for files too large to load',
     'The Diff Radar: six axes scoring what changed',
     'Projects, saved comparisons and option presets',
-    'HTML, Markdown and patch export, plus a twinscope command line',
+    'HTML, Markdown and patch export',
+    'A twinscope command line on npm: every engine, CI thresholds and exit codes',
   ],
 };
 
@@ -113,6 +114,17 @@ export default function Landing() {
               >
                 Read the docs
               </Link>
+            </div>
+
+            {/* The dmg needs a right-click past Gatekeeper; this needs nothing. It sits
+                under the buttons rather than replacing one, because the app is still the
+                better way to *read* a diff — see /docs/getting-started/install. */}
+            <div className="ws-hero-cli">
+              <CodeBlock
+                file="Or try it right now, with nothing installed"
+                lang="bash"
+                code={`npx twinscope before.json after.json`}
+              />
             </div>
 
             <p className="ws-hero-fine">

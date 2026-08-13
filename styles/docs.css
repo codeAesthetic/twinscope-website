@@ -302,11 +302,16 @@
 /* `.ws-rel` is the changelog. Its entries only gained links when the 0.2.x and
    0.3.x releases arrived, and axe caught them immediately — the same rule, on a
    surface the original selector list did not know existed. */
+/* `.ws-page-note` is prose too — it just lives on a hand-written page rather than in
+   MDX. Without it, a link there carries colour alone, which axe rightly calls a
+   serious violation (link-in-text-block) and which the download page's new command
+   line section was the first to hit. */
 .ws-prose p a,
 .ws-prose li a,
 .ws-prose td a,
 .ws-prose blockquote a,
 .ws-callout a,
+.ws-page-note a,
 .ws-rel p a,
 .ws-rel li a {
   text-decoration: underline;
@@ -320,6 +325,7 @@
 .ws-prose td a:hover,
 .ws-prose blockquote a:hover,
 .ws-callout a:hover,
+.ws-page-note a:hover,
 .ws-rel p a:hover,
 .ws-rel li a:hover {
   text-decoration-color: var(--acc-2);

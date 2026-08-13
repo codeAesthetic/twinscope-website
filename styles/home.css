@@ -40,6 +40,14 @@
   color: var(--tx-3);
 }
 
+/* The hero's npx line. Constrained and left-aligned: a centred command reads as
+   decoration, and a full-width one dwarfs the buttons above it. */
+.ws-hero-cli {
+  max-width: 560px;
+  margin: 20px auto 0;
+  text-align: left;
+}
+
 .ws-heroshot {
   margin: 42px auto 0;
   max-width: 1000px;

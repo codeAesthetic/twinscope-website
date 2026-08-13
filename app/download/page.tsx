@@ -103,6 +103,28 @@ export default function Download() {
             {` shasum -a 256 ~/Downloads/${MAC.filename}`}
           </div>
 
+          <h2 id="command-line">Or skip the download: the command line</h2>
+
+          <p className="ws-page-note">
+            Every engine on this page also runs from a terminal, and that route needs no dmg, no
+            Gatekeeper detour and no download at all — just Node 22.12 or newer.
+          </p>
+
+          <CodeBlock
+            file="Run it once, or install it"
+            lang="bash"
+            code={`npx twinscope before.json after.json
+
+npm install -g twinscope`}
+          />
+
+          <p className="ws-page-note">
+            One bundled file with zero dependencies and no native modules. It is the same detection
+            and the same engines as the app, and it exits 0, 1 or 2 so a script can act on the
+            answer — see <Link href="/docs/tools/cli">the command line</Link> and{' '}
+            <Link href="/docs/tools/ci">CI</Link>.
+          </p>
+
           <h2 id="build-it-yourself">Or build it yourself</h2>
 
           <CodeBlock file="Terminal" lang="bash" code={BUILD_STEPS} />

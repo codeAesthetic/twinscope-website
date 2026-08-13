@@ -1,17 +1,37 @@
 ---
 title: Install
-description: Download the macOS dmg from GitHub Releases and get past Gatekeeper, or build TwinScope from source with Node 24.
-lede: A macOS dmg, or a build from source in three commands. The dmg is unsigned, so macOS refuses to open it on the first attempt — here is exactly how to open it anyway, and exactly what that means.
+description: Run the command line with npx in one line, or download the macOS dmg from GitHub Releases and get past Gatekeeper. Building from source takes three commands.
+lede: Three ways in, in increasing order of effort — one npx line for the command line, a dmg for the app, or a build from source. The dmg is unsigned, so macOS refuses to open it on the first attempt; here is exactly how to open it anyway, and exactly what that means.
 ---
+
+## The fastest way in: the command line
+
+No download and no Gatekeeper detour. If you have Node 22.12 or newer:
+
+<CodeBlock
+  file="One comparison, nothing installed"
+  lang="bash"
+  code={`npx twinscope before.json after.json`}
+/>
+
+That runs the same sixteen engines the app runs, on the same detection, and prints what
+changed. Install it properly with `npm install -g twinscope`. It is one bundled file with
+**zero dependencies** and no native modules, so there is nothing to compile and nothing to
+go wrong on your machine — the full reference is [the twinscope command
+line](/docs/tools/cli).
+
+The desktop app is the better tool for _reading_ a diff — the tree, the image modes, the
+change navigation. The command line is the better tool for answering a question quickly, or
+for [CI](/docs/tools/ci).
 
 ## Requirements
 
-|                     |                                                                                                                                                       |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **macOS**           | The primary target. Both Apple silicon (`arm64`) and Intel (`x64`) dmgs are built.                                                                    |
-| **Node**            | 24 (LTS) — only for building from source. `nvm use` picks it up from `.nvmrc`.                                                                        |
-| **npm**             | 11 or newer, which ships with Node 24.                                                                                                                |
-| **Windows / Linux** | Build targets exist — an NSIS installer, an AppImage and a `.deb` — but they are **untested on their own platforms** and are not supported for 0.1.0. |
+|                     |                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **macOS**           | The primary target for the app. Both Apple silicon (`arm64`) and Intel (`x64`) dmgs are built.                                                         |
+| **Node**            | **22.12 or newer** to run the command line. 24 (LTS) to build from source — `nvm use` picks it up from `.nvmrc`.                                       |
+| **npm**             | 11 or newer, which ships with Node 24.                                                                                                                 |
+| **Windows / Linux** | An NSIS installer, an AppImage and a `.deb` are published, but they are **untested on their own platforms**. The command line runs anywhere Node does. |
 
 ## Download the macOS build
 

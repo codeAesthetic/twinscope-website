@@ -1,8 +1,15 @@
 ---
 title: The twinscope command line
-description: A single bundled binary that runs every one of TwinScope's engines, prints what changed, and exits 0, 1 or 2 — the same engines and the same report renderers as the desktop app.
-lede: Every engine the app has, from a terminal. The same detection, the same normalisation notes and byte-identical reports — because the command line is not a reimplementation, it is a second host for the same code.
+description: Install it with npm or run it with npx. A single bundled binary that runs every one of TwinScope's engines, prints what changed, and exits 0, 1 or 2 — the same engines and the same report renderers as the desktop app.
+lede: Every engine the app has, from a terminal — one npx away. The same detection, the same normalisation notes and byte-identical reports, because the command line is not a reimplementation but a second host for the same code.
 ---
+
+<CodeBlock file="Try it now" lang="bash" code={`npx twinscope before.json after.json`} />
+
+No install, no browser download, no account. It is on npm as
+[`twinscope`](https://www.npmjs.com/package/twinscope) and needs **Node 22.12 or
+newer** — see [installing it](#installing-it) for the global install and the
+from-source build.
 
 <CodeBlock
   file="Usage"
@@ -28,8 +35,6 @@ nodes: 29 · type change: ⚠ 1
 />
 
 Counts first, then what the comparison actually did — the same explainability rule the app follows. This is real output, not an illustration: it is what the sample JSON pair prints today.
-}
-/>
 
 ## Real invocations
 
@@ -52,8 +57,24 @@ being told. The two exceptions are on this page: `--engine visual` (below), and
 
 ## Installing it
 
-The CLI is not on npm — publishing is an owner action that has not happened — so it
-is built from source. It takes a few seconds and downloads no browser:
+It is on npm as [`twinscope`](https://www.npmjs.com/package/twinscope), and the
+fastest way to try it is not to install it at all:
+
+<CodeBlock
+  file="Run it once, or install it"
+  lang="bash"
+  code={`npx twinscope before.json after.json
+
+npm install -g twinscope`}
+/>
+
+**Node 22.12 or newer**, and nothing else: no native modules, no post-install step,
+and no `node_modules` beside the binary — it is one bundled CommonJS file with a
+shebang, plus the pdfjs worker it loads for PDF comparisons. Six files, under a
+megabyte packed, and **zero dependencies**, because every library it uses is already
+inside that bundle.
+
+You can still build it from source, which is what a contributor wants:
 
 <CodeBlock
   file="Building the binary"
@@ -64,12 +85,9 @@ npm install
 npm run build:cli    # -> out/cli/index.js`}
 />
 
-The result is one bundled CommonJS file with a shebang and **no `node_modules`
-beside it** — every dependency is inlined, so it runs from anywhere. Invoke it as
-`node out/cli/index.js`, or put it on your `PATH` as `twinscope` (the package
-declares that name for its binary). CI examples on the [continuous
-integration](/docs/tools/ci) page use the explicit `node` form, because a workflow
-should not depend on a link somebody made by hand.
+Invoke that as `node out/cli/index.js`. CI examples on the [continuous
+integration](/docs/tools/ci) page use the explicit `node` form or `npx`, because a
+workflow should not depend on a link somebody made by hand.
 
 ## Options
 
