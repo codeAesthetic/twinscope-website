@@ -6,7 +6,7 @@ lede: Two folders of screenshots, compared shot by shot, ordered worst-first, wi
 
 <MediaFigure
   priority
-  id="visual-regression"
+  id="visual-cli"
   alt="Terminal output from a visual regression run, listing three screenshots worst-first with the worst difference and an over-budget count"
   caption={
     <>
@@ -34,13 +34,17 @@ This engine needs two capabilities at once: it has to **list directories** and i
 
 Handing the window a whole baseline set as bytes over the app's internal bridge is exactly what the standing rule against moving big inputs across it forbids — a four-hundred-shot set is not a payload, it is a directory.
 
-So in the desktop app this engine **refuses, and its refusal names the command line** rather than failing obscurely:
+So in the desktop app this engine **declines, and says where it does run** rather than failing obscurely:
 
-<CodeBlock
-  file="the refusal"
-  lang="text"
-  code={`Visual regression needs to read directories *and* decode images.
-Run it from the command line: twinscope baseline/ current/ --engine visual.`}
+<MediaFigure
+  id="visual-regression"
+  alt="The TwinScope workspace showing 'Not available in the app', the reason, the command to run instead, and buttons to compare as folders or go back"
+  caption={
+    <>
+      <b>Not a failure.</b> Nothing went wrong here, so nothing is coloured as though it did — the
+      app is answering a question, and the answer is a command.
+    </>
+  }
 />
 
 **Compare as folders** is offered beside it as a button, since the [folder engine](/docs/engines/folders) can still tell you which screenshots changed at all — just not by how much.
