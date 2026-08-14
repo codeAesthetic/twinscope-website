@@ -89,23 +89,9 @@ video {
 }
 
 /* ── WEB-1 scaffold-proof bits. WEB-2 replaces these with real components. ── */
-.ws-logo {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  position: relative;
-  border-radius: 6px;
-  background: linear-gradient(140deg, var(--acc), #4ad2ff);
-}
-
-.ws-logo::after {
-  content: '';
-  position: absolute;
-  inset: 5px 10px 5px 5px;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 2px 0 0 2px;
-}
-
+/* .ws-logo lived here too, byte-identical to the copy in primitives.css — which
+   is imported after this file and so always won. Two sources of truth for the
+   mark is one too many; it is defined only in primitives.css now. */
 .ws-ver {
   font: 600 10px/1 var(--mono);
   color: var(--acc-2);
